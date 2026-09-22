@@ -96,24 +96,8 @@ aside.do-sidebar .do-user-info span {
 
   aside.do-sidebar .secure-profile-badge,
   aside.do-sidebar .do-user-badge {
-    flex-direction: column;
     justify-content: center;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 6px;
-  }
-
-  aside.do-sidebar .secure-profile-main {
-    justify-content: center;
-    flex: 0 0 auto;
-  }
-
-  aside.do-sidebar .secure-logout-btn {
-    width: 34px;
-    height: 34px;
-    border: 1px solid #fecaca;
-    border-radius: 10px;
-    background: #fff;
+    padding: 8px;
   }
 }
 

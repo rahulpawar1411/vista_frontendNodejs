@@ -5383,25 +5383,30 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         <div className="secure-sidebar-bottom">
           <div
             className={`secure-profile-badge secure-profile-badge--clickable${activeMenu === 'super_admin_profile' ? ' is-active' : ''}`}
+            onClick={openSuperAdminProfileWindow}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openSuperAdminProfileWindow();
+              }
+            }}
+            title="Open Super Admin Profile"
           >
-            <button
-              type="button"
-              className="secure-profile-main"
-              onClick={openSuperAdminProfileWindow}
-              title="Open Super Admin Profile"
-            >
-              <div className="secure-avatar">SA</div>
-              <div className="secure-user-info">
-                <strong>Super Admin</strong>
-                <span>{user?.email || 'admin@reeferon.com'}</span>
-              </div>
-            </button>
+            <div className="secure-avatar">SA</div>
+            <div className="secure-user-info">
+              <strong>Super Admin</strong>
+              <span>{user?.email || 'admin@reeferon.com'}</span>
+            </div>
             <button
               type="button"
               className="secure-logout-btn"
-              onClick={onLogout}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLogout();
+              }}
               title="Log Out Session"
-              aria-label="Log out"
             >
               <LogOut size={16} />
             </button>
@@ -5411,25 +5416,33 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
       {/* 2. Main Workspace Layout */}
       {/* Header */}
-      <header className="secure-admin-header">
-        <div className="secure-header-left">
+      <header
+        className="secure-admin-header"
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 24px', zIndex: 110 }}
+      >
+        {/* Left section: Mobile-only Logo */}
+        <div className="secure-header-left" style={{ position: 'absolute', left: '24px', display: 'flex', alignItems: 'center' }}>
           <div className="secure-mobile-logo mobile-only">
             <Logo compact={true} />
           </div>
         </div>
 
-        <div className="secure-header-center">
-          <span className="secure-role-tag">Super Admin</span>
-          <div className="secure-clock-subtext">
+        {/* Center section: Super Admin + date/time below */}
+        <div className="secure-header-center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', textAlign: 'center' }}>
+          <span className="secure-role-tag" style={{ margin: 0 }}>
+            Super Admin
+          </span>
+          <div className="secure-clock-subtext" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '700' }}>
             <span>{formatDate(time)}</span>
-            <span className="secure-clock-time">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <Clock size={12} />
               {formatTime(time)}
             </span>
           </div>
         </div>
 
-        <div className="secure-header-right">
+        {/* Right section: Mobile Hamburger Button & Spacers */}
+        <div className="secure-header-right" style={{ position: 'absolute', right: '24px', display: 'flex', alignItems: 'center' }}>
           <button 
             className="mobile-hamburger-btn mobile-only"
             onClick={() => setIsMobileMenuOpen(prev => !prev)}
@@ -6178,44 +6191,43 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 </button>
               </div>
 
-              <div className="sa-dash-task-summary">
-                <div className="sa-dash-task-summary-group">
-                  <div className="sa-dash-task-metric done" title="Morning completed / expected">
-                    <span>Morning</span>
-                    <strong>
-                      {Number(doTaskSummary.morning_completed) || 0}
-                      <i>/{Number(doTaskSummary.morning_expected) || 0}</i>
-                    </strong>
-                  </div>
-                  <div className="sa-dash-task-metric evening" title="Evening completed / expected">
-                    <span>Evening</span>
-                    <strong>
-                      {Number(doTaskSummary.evening_completed) || 0}
-                      <i>/{Number(doTaskSummary.evening_expected) || 0}</i>
-                    </strong>
-                  </div>
-                  <div className="sa-dash-task-metric overdue" title="Missing logs in prior 5 days">
-                    <span>Overdue</span>
-                    <strong>{Number(doTaskSummary.overdue) || 0}</strong>
-                  </div>
+              <div className="sa-dash-task-metrics">
+                <div className="sa-dash-task-metric done" title="Morning completed / expected">
+                  <span>Morning</span>
+                  <strong>
+                    {Number(doTaskSummary.morning_completed) || 0}
+                    <i>/{Number(doTaskSummary.morning_expected) || 0}</i>
+                  </strong>
                 </div>
-                <div className="sa-dash-task-summary-group io">
-                  <div className="sa-dash-task-metric inward" title="All inward records till now (all DOs)">
-                    <span>Total Inward</span>
-                    <strong>{Number(doTaskSummary.total_inward) || 0}</strong>
-                  </div>
-                  <div className="sa-dash-task-metric outward" title="All outward records till now (all DOs)">
-                    <span>Total Outward</span>
-                    <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
-                  </div>
-                  <div className="sa-dash-task-metric inward-today" title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
-                    <span>{doTaskDate === localDateStr() ? 'Today In' : 'Day In'}</span>
-                    <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
-                  </div>
-                  <div className="sa-dash-task-metric outward-today" title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
-                    <span>{doTaskDate === localDateStr() ? 'Today Out' : 'Day Out'}</span>
-                    <strong>{Number(doTaskSummary.today_outward) || 0}</strong>
-                  </div>
+                <div className="sa-dash-task-metric evening" title="Evening completed / expected">
+                  <span>Evening</span>
+                  <strong>
+                    {Number(doTaskSummary.evening_completed) || 0}
+                    <i>/{Number(doTaskSummary.evening_expected) || 0}</i>
+                  </strong>
+                </div>
+                <div className="sa-dash-task-metric overdue" title="Missing logs in prior 5 days">
+                  <span>Overdue</span>
+                  <strong>{Number(doTaskSummary.overdue) || 0}</strong>
+                </div>
+              </div>
+
+              <div className="sa-dash-task-metrics sa-dash-task-metrics-io" title="Inward / Outward log counts from database">
+                <div className="sa-dash-task-metric inward" title="All inward records till now (all DOs)">
+                  <span>Total Inward</span>
+                  <strong>{Number(doTaskSummary.total_inward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric outward" title="All outward records till now (all DOs)">
+                  <span>Total Outward</span>
+                  <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric inward-today" title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
+                  <span>{doTaskDate === localDateStr() ? 'Today Inward' : 'Day Inward'}</span>
+                  <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric outward-today" title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
+                  <span>{doTaskDate === localDateStr() ? 'Today Outward' : 'Day Outward'}</span>
+                  <strong>{Number(doTaskSummary.today_outward) || 0}</strong>
                 </div>
               </div>
 
@@ -6303,14 +6315,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     </div>
                   ) : null}
                   <div className="sa-dash-task-cols">
-                    <span className="sa-dash-task-col-status" />
+                    <span />
                     <span>Operator</span>
                     <span>Warehouse</span>
-                    <span className="sa-dash-task-col-num">Morning</span>
-                    <span className="sa-dash-task-col-num">Evening</span>
-                    <span className="sa-dash-task-col-num">Over</span>
-                    <span className="sa-dash-task-col-num">Inward</span>
-                    <span className="sa-dash-task-col-num">Outward</span>
+                    <span>Morning</span>
+                    <span>Evening</span>
+                    <span>Over</span>
+                    <span title="Total · Today">In</span>
+                    <span title="Total · Today">Out</span>
                   </div>
                   {doTaskRows.map((op, idx) => {
                     const totalTasks = Number(op.assignment_count) || 0;
@@ -6321,6 +6333,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     const overdue = Number(op.overdue) || 0;
                     const mornPend = Number(op.morning_pending) || Math.max(0, mornExp - mornDone);
                     const evePend = Number(op.evening_pending) || Math.max(0, eveExp - eveDone);
+                    const mornPct = mornExp > 0 ? Math.min(100, Math.round((mornDone / mornExp) * 100)) : 0;
+                    const evePct = eveExp > 0 ? Math.min(100, Math.round((eveDone / eveExp) * 100)) : 0;
                     const inTotal = Number(op.total_inward) || 0;
                     const outTotal = Number(op.total_outward) || 0;
                     const inToday = Number(op.today_inward) || 0;
@@ -6342,31 +6356,38 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         title={`${op.name || op.full_name || 'DO'} · Inward ${inTotal} (today ${inToday}) · Outward ${outTotal} (today ${outToday})`}
                       >
                         <span className="sa-dash-task-dot" />
-                        <span className="sa-dash-task-op">
-                          <strong>{op.name || op.full_name || 'DO'}</strong>
-                          <small>{op.email || '—'}</small>
-                        </span>
-                        <span className="sa-dash-task-wh">{op.warehouse_name || '—'}</span>
+                        <strong>{op.name || op.full_name || 'DO'}</strong>
+                        <em>{op.warehouse_name || '—'}</em>
                         <span
                           className={`sa-dash-task-shift${mornPend > 0 ? ' pending' : mornExp > 0 ? ' done' : ''}`}
                         >
-                          <b>{mornDone}</b>
-                          <i>/{mornExp}</i>
+                          <span className="sa-dash-task-shift-top">
+                            <b>{mornDone}</b>
+                            <i>/{mornExp}</i>
+                          </span>
+                          <span className="sa-dash-task-bar" aria-hidden>
+                            <span style={{ width: `${mornPct}%` }} />
+                          </span>
                         </span>
                         <span
                           className={`sa-dash-task-shift${evePend > 0 ? ' pending' : eveExp > 0 ? ' done' : ''}`}
                         >
-                          <b>{eveDone}</b>
-                          <i>/{eveExp}</i>
+                          <span className="sa-dash-task-shift-top">
+                            <b>{eveDone}</b>
+                            <i>/{eveExp}</i>
+                          </span>
+                          <span className="sa-dash-task-bar" aria-hidden>
+                            <span style={{ width: `${evePct}%` }} />
+                          </span>
                         </span>
                         <b className={`overdue${overdue > 0 ? ' hot' : ''}`}>{overdue}</b>
                         <span className="sa-dash-task-io inward" title={`Inward total ${inTotal} · today ${inToday}`}>
                           <b>{inTotal}</b>
-                          <i>today {inToday}</i>
+                          <i>·{inToday}</i>
                         </span>
                         <span className="sa-dash-task-io outward" title={`Outward total ${outTotal} · today ${outToday}`}>
                           <b>{outTotal}</b>
-                          <i>today {outToday}</i>
+                          <i>·{outToday}</i>
                         </span>
                       </button>
                     );
