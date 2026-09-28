@@ -374,9 +374,23 @@
   border-bottom: 1px solid var(--op-line, #e0e0e0);
 }
 
-.mdm-panel .sa-op-directory .sa-op-inbox-row {
+/* SA directory switched to tables and hid inbox rows globally —
+   Master panel still uses inbox rows, so re-enable them here. */
+.mdm-panel .sa-op-inbox-row {
+  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.mdm-panel .sa-op-inbox-row:hover {
+  background: var(--op-hover, #f2f6fc);
+  box-shadow: inset 1px 0 0 #c2e7ff;
+}
+
+.mdm-panel .sa-op-inbox-row:last-child {
+  border-bottom: none;
 }
 
 .mdm-panel .sa-op-inbox-main {
@@ -386,6 +400,11 @@
   align-items: center;
   width: 100%;
   text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 10px 12px;
+  color: inherit;
 }
 
 @media (max-width: 900px) {
@@ -411,7 +430,7 @@
     justify-content: center;
   }
 
-  .mdm-panel .sa-op-directory .sa-op-inbox-row {
+  .mdm-panel .sa-op-inbox-row {
     grid-template-columns: 1fr;
   }
 }
