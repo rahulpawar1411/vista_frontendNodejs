@@ -8365,6 +8365,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               <th>Warehouse</th>
                               <th>Operator Email</th>
                               <th>Vehicle No</th>
+                              <th>Invoice No</th>
+                              <th>Mens Power</th>
                               <th>Client</th>
                               <th>Dock No</th>
                               <th>Vehicle Temp</th>
@@ -8382,6 +8384,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               <th>Warehouse</th>
                               <th>Operator Email</th>
                               <th>Vehicle No</th>
+                              <th>Invoice No</th>
+                              <th>Mens Power</th>
                               <th>Client</th>
                               <th>Dock No</th>
                               <th>Vehicle Temp</th>
@@ -8539,6 +8543,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.78rem' }}>{renderOperatorEmail(log.operator_email)}</td>
                         <td style={{ padding: '12px 16px', fontWeight: '700' }}>{log.inward_vehicle_no}</td>
+                        <td style={{ padding: '12px 16px' }}>{log.inward_invoice_no != null && String(log.inward_invoice_no).trim() !== '' ? log.inward_invoice_no : '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{log.inward_mens_power != null && log.inward_mens_power !== '' ? log.inward_mens_power : '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{log.inward_client_name}</td>
                         <td style={{ padding: '12px 16px' }}>{log.inward_dock_no || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{log.inward_vehicle_temp}°C</td>
@@ -8605,6 +8611,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '0.78rem' }}>{renderOperatorEmail(log.operator_email)}</td>
                         <td style={{ padding: '12px 16px', fontWeight: '700' }}>{log.outward_vehicle_no}</td>
+                        <td style={{ padding: '12px 16px' }}>{log.outward_invoice_no != null && String(log.outward_invoice_no).trim() !== '' ? log.outward_invoice_no : '-'}</td>
+                        <td style={{ padding: '12px 16px' }}>{log.outward_mens_power != null && log.outward_mens_power !== '' ? log.outward_mens_power : '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{log.outward_client_name}</td>
                         <td style={{ padding: '12px 16px' }}>{log.outward_dock_no || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{log.outward_vehicle_temp}°C</td>
@@ -8837,11 +8845,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Invoice No.</span>
-                              <span className="profile-value">{searchedRecord.inward_invoice_no || '-'}</span>
+                              <span className="profile-value">{searchedRecord.inward_invoice_no != null && String(searchedRecord.inward_invoice_no).trim() !== '' ? searchedRecord.inward_invoice_no : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Mens Power</span>
-                              <span className="profile-value">{searchedRecord.inward_mens_power ?? '-'}</span>
+                              <span className="profile-value">{searchedRecord.inward_mens_power != null && searchedRecord.inward_mens_power !== '' ? searchedRecord.inward_mens_power : '-'}</span>
                             </div>
                           </div>
                         </div>
@@ -8964,11 +8972,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Invoice No.</span>
-                              <span className="profile-value">{searchedRecord.outward_invoice_no || '-'}</span>
+                              <span className="profile-value">{searchedRecord.outward_invoice_no != null && String(searchedRecord.outward_invoice_no).trim() !== '' ? searchedRecord.outward_invoice_no : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Mens Power</span>
-                              <span className="profile-value">{searchedRecord.outward_mens_power ?? '-'}</span>
+                              <span className="profile-value">{searchedRecord.outward_mens_power != null && searchedRecord.outward_mens_power !== '' ? searchedRecord.outward_mens_power : '-'}</span>
                             </div>
                           </div>
                         </div>
@@ -12928,11 +12936,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Invoice No.</span>
-                          <span className="profile-value">{selectedDetailLog.inward_invoice_no || '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.inward_invoice_no != null && String(selectedDetailLog.inward_invoice_no).trim() !== '' ? selectedDetailLog.inward_invoice_no : '-'}</span>
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Mens Power</span>
-                          <span className="profile-value">{selectedDetailLog.inward_mens_power ?? '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.inward_mens_power != null && selectedDetailLog.inward_mens_power !== '' ? selectedDetailLog.inward_mens_power : '-'}</span>
                         </div>
                       </div>
                     </div>
@@ -13040,11 +13048,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Invoice No.</span>
-                          <span className="profile-value">{selectedDetailLog.outward_invoice_no || '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.outward_invoice_no != null && String(selectedDetailLog.outward_invoice_no).trim() !== '' ? selectedDetailLog.outward_invoice_no : '-'}</span>
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Mens Power</span>
-                          <span className="profile-value">{selectedDetailLog.outward_mens_power ?? '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.outward_mens_power != null && selectedDetailLog.outward_mens_power !== '' ? selectedDetailLog.outward_mens_power : '-'}</span>
                         </div>
                       </div>
                     </div>

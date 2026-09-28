@@ -570,11 +570,11 @@ export default function DOProfileLookup({ setActiveDOMenu, setEditInwardData, se
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Invoice No.</span>
-                          <span className="profile-value">{searchedRecord.inward_invoice_no || '-'}</span>
+                          <span className="profile-value">{searchedRecord.inward_invoice_no != null && String(searchedRecord.inward_invoice_no).trim() !== '' ? searchedRecord.inward_invoice_no : '-'}</span>
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Mens Power</span>
-                          <span className="profile-value">{searchedRecord.inward_mens_power ?? '-'}</span>
+                          <span className="profile-value">{searchedRecord.inward_mens_power != null && searchedRecord.inward_mens_power !== '' ? searchedRecord.inward_mens_power : '-'}</span>
                         </div>
                       </div>
                     </div>
@@ -709,11 +709,11 @@ export default function DOProfileLookup({ setActiveDOMenu, setEditInwardData, se
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Invoice No.</span>
-                          <span className="profile-value">{searchedRecord.outward_invoice_no || '-'}</span>
+                          <span className="profile-value">{searchedRecord.outward_invoice_no != null && String(searchedRecord.outward_invoice_no).trim() !== '' ? searchedRecord.outward_invoice_no : '-'}</span>
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Mens Power</span>
-                          <span className="profile-value">{searchedRecord.outward_mens_power ?? '-'}</span>
+                          <span className="profile-value">{searchedRecord.outward_mens_power != null && searchedRecord.outward_mens_power !== '' ? searchedRecord.outward_mens_power : '-'}</span>
                         </div>
                       </div>
                     </div>

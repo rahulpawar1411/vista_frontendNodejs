@@ -821,6 +821,8 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                     <th>Date</th>
                     <th>Ref No</th>
                     <th>Vehicle No</th>
+                    <th>Invoice No</th>
+                    <th>Mens Power</th>
                     <th className="wrap-text">Client</th>
                     <th>Inward Vehicle Temp</th>
                     <th>Inward Material Temp</th>
@@ -836,6 +838,8 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                     <th>Date</th>
                     <th>Ref No</th>
                     <th>Vehicle No</th>
+                    <th>Invoice No</th>
+                    <th>Mens Power</th>
                     <th className="wrap-text">Client</th>
                     <th>Pre Vehicle Temp</th>
                     <th>Outward Material Temp</th>
@@ -991,6 +995,8 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                       </span>
                     </td>
                     <td><strong>{log.inward_vehicle_no}</strong></td>
+                    <td>{log.inward_invoice_no != null && String(log.inward_invoice_no).trim() !== '' ? log.inward_invoice_no : '-'}</td>
+                    <td>{log.inward_mens_power != null && log.inward_mens_power !== '' ? log.inward_mens_power : '-'}</td>
                     <td className="wrap-text">{log.inward_client_name}</td>
                     <td>{log.inward_vehicle_temp}°C</td>
                     <td>{log.inward_material_temp}°C</td>
@@ -1091,6 +1097,8 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                       </span>
                     </td>
                     <td><strong>{log.outward_vehicle_no}</strong></td>
+                    <td>{log.outward_invoice_no != null && String(log.outward_invoice_no).trim() !== '' ? log.outward_invoice_no : '-'}</td>
+                    <td>{log.outward_mens_power != null && log.outward_mens_power !== '' ? log.outward_mens_power : '-'}</td>
                     <td className="wrap-text">{log.outward_client_name}</td>
                     <td>{log.outward_pre_vehicle_temp || log.outward_vehicle_temp}°C</td>
                     <td>{log.outward_material_temp}°C</td>
@@ -1507,11 +1515,11 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Invoice No.</span>
-                          <span className="profile-value">{selectedDetailLog.inward_invoice_no || '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.inward_invoice_no != null && String(selectedDetailLog.inward_invoice_no).trim() !== '' ? selectedDetailLog.inward_invoice_no : '-'}</span>
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Mens Power</span>
-                          <span className="profile-value">{selectedDetailLog.inward_mens_power ?? '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.inward_mens_power != null && selectedDetailLog.inward_mens_power !== '' ? selectedDetailLog.inward_mens_power : '-'}</span>
                         </div>
                       </div>
                     </div>
@@ -1646,11 +1654,11 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Invoice No.</span>
-                          <span className="profile-value">{selectedDetailLog.outward_invoice_no || '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.outward_invoice_no != null && String(selectedDetailLog.outward_invoice_no).trim() !== '' ? selectedDetailLog.outward_invoice_no : '-'}</span>
                         </div>
                         <div className="profile-item">
                           <span className="profile-label">Mens Power</span>
-                          <span className="profile-value">{selectedDetailLog.outward_mens_power ?? '-'}</span>
+                          <span className="profile-value">{selectedDetailLog.outward_mens_power != null && selectedDetailLog.outward_mens_power !== '' ? selectedDetailLog.outward_mens_power : '-'}</span>
                         </div>
                       </div>
                     </div>

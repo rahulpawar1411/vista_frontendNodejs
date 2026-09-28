@@ -15,10 +15,12 @@ import FallbackImg from '../FallbackImg/FallbackImg';
 import './LogProfileDetailModal.css';
 
 function ProfileField({ label, value, span2, valueStyle, valueClassName, copyable }) {
+  const normalized =
+    value === null || value === undefined || String(value).trim() === '' ? '-' : value;
   const display =
-    copyable && value != null && value !== '' && value !== '-'
-      ? <CopyableRef value={value} className="profile-value-copyable" />
-      : (value ?? '-');
+    copyable && normalized !== '-'
+      ? <CopyableRef value={normalized} className="profile-value-copyable" />
+      : normalized;
   return (
     <div className="profile-item" style={span2 ? { gridColumn: 'span 2' } : undefined}>
       <span className="profile-label">{label}</span>
