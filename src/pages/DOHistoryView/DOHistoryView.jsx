@@ -244,7 +244,7 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
       });
     } else if (activeTab === 'inward') {
       const headers = [
-        "Date", "Vehicle No", "Seal No", "Client", "Transporter", "Driver Name", "Driver Contact", "Dock No", 
+        "Date", "Vehicle No", "Seal No", "Invoice No", "Mens Power", "Client", "Transporter", "Driver Name", "Driver Contact", "Dock No", 
         "Reporting Time", "Vehicle Temp (°C)", "Material Temp (°C)", "Material Type", "Pallets Qty", 
         "Invoice Qty", "Received Pallets", "Received Boxes", "Short Boxes", "Excess Boxes", "Damage Boxes", 
         "Unloading Start", "Unloading End", "Unloading Duration", "Supervisor", "Remarks", "Photo Capture Time & Location", "Last Updated"
@@ -256,6 +256,8 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
           formatDateStr(log.inward_entry_date),
           log.inward_vehicle_no || '',
           log.inward_seal_no || '',
+          log.inward_invoice_no || '',
+          log.inward_mens_power !== undefined && log.inward_mens_power !== null ? log.inward_mens_power : '',
           log.inward_client_name || '',
           log.inward_transporter_name || '',
           log.inward_driver_name || '',
@@ -284,7 +286,7 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
       });
     } else if (activeTab === 'outward') {
       const headers = [
-        "Date", "Vehicle No", "Seal No", "Client", "Transporter", "Driver Name", "Driver Contact", "Dock No", 
+        "Date", "Vehicle No", "Seal No", "Invoice No", "Mens Power", "Client", "Transporter", "Driver Name", "Driver Contact", "Dock No", 
         "Reporting Time", "Pre Vehicle Temp (°C)", "Material Temp (°C)", "Material Type", "Pallets Qty", 
         "Invoice Qty", "Loaded Pallets", "Loaded Boxes", "Short Loaded Boxes", "Excess Loaded Boxes", "Damage Boxes", 
         "Loading Start", "Loading End", "Loading Duration", "Supervisor", "Remarks", "Photo Capture Time & Location", "Last Updated"
@@ -296,6 +298,8 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
           formatDateStr(log.outward_entry_date),
           log.outward_vehicle_no || '',
           log.outward_seal_no || '',
+          log.outward_invoice_no || '',
+          log.outward_mens_power !== undefined && log.outward_mens_power !== null ? log.outward_mens_power : '',
           log.outward_client_name || '',
           log.outward_transporter_name || '',
           log.outward_driver_name || '',
@@ -1501,6 +1505,14 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                           <span className="profile-label">Seal Number</span>
                           <span className="profile-value">{selectedDetailLog.inward_seal_no || '-'}</span>
                         </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Invoice No.</span>
+                          <span className="profile-value">{selectedDetailLog.inward_invoice_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Mens Power</span>
+                          <span className="profile-value">{selectedDetailLog.inward_mens_power ?? '-'}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1631,6 +1643,14 @@ export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setE
                         <div className="profile-item">
                           <span className="profile-label">Seal Number</span>
                           <span className="profile-value">{selectedDetailLog.outward_seal_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Invoice No.</span>
+                          <span className="profile-value">{selectedDetailLog.outward_invoice_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Mens Power</span>
+                          <span className="profile-value">{selectedDetailLog.outward_mens_power ?? '-'}</span>
                         </div>
                       </div>
                     </div>

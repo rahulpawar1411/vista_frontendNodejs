@@ -39,6 +39,8 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
     inward_entry_date: todayStr,
     inward_vehicle_no: '',
     inward_seal_no: '',
+    inward_invoice_no: '',
+    inward_mens_power: '',
     inward_vehicle_temp: '',
     inward_material_temp: '',
     inward_transporter_name: '',
@@ -161,6 +163,8 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
         inward_entry_date: entryDateOnly,
         inward_vehicle_no: editData.inward_vehicle_no || '',
         inward_seal_no: editData.inward_seal_no || '',
+        inward_invoice_no: editData.inward_invoice_no || '',
+        inward_mens_power: editData.inward_mens_power ?? '',
         inward_vehicle_temp: editData.inward_vehicle_temp || '',
         inward_material_temp: editData.inward_material_temp || '',
         inward_transporter_name: editData.inward_transporter_name || '',
@@ -563,6 +567,7 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
       ['inward_dock_no', 'Dock No.'],
       ['inward_material_type', 'Material Type'],
       ['inward_vehicle_no', 'Vehicle No.'],
+      ['inward_invoice_no', 'Invoice No.'],
       ['inward_transporter_name', 'Transporter Name'],
       ['inward_driver_name', 'Driver Name'],
       ['inward_driver_no', 'Driver Phone No.'],
@@ -579,7 +584,7 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
       ['inward_invoice_qty', 'Invoice Boxes Qty'],
       ['inward_received_boxes_qty', 'Boxes Received Qty'],
       ['inward_unloading_supervisor_name', 'Unloading Supervisor Name']
-      // Seal No., Remarks & Damage Qty are optional
+      // Seal No., Mens Power, Remarks & Damage Qty are optional
     ];
 
     const missingKeys = requiredFields
@@ -763,6 +768,8 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
         inward_entry_date: todayStr,
         inward_vehicle_no: '',
         inward_seal_no: '',
+        inward_invoice_no: '',
+        inward_mens_power: '',
         inward_vehicle_temp: '',
         inward_material_temp: '',
         inward_transporter_name: '',
@@ -839,6 +846,9 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
     else if (name === 'inward_seal_no') {
       value = value.toUpperCase();
     }
+    else if (name === 'inward_invoice_no') {
+      value = value.toUpperCase();
+    }
     // 2b. Text fields (names only)
     else if (['inward_driver_name', 'inward_unloading_supervisor_name', 'inward_transporter_name'].includes(name)) {
       value = value.replace(/[^a-zA-Z\s]/g, '');
@@ -850,7 +860,7 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
       value = digits.slice(0, maxDigits);
     }
     // 4. Integer fields (Pallets, Boxes, Quantities)
-    else if (['inward_pallets_in_qty', 'inward_invoice_qty', 'inward_received_qty', 'inward_received_boxes_qty', 'inward_damage_received_boxes_qty'].includes(name)) {
+    else if (['inward_pallets_in_qty', 'inward_invoice_qty', 'inward_received_qty', 'inward_received_boxes_qty', 'inward_damage_received_boxes_qty', 'inward_mens_power'].includes(name)) {
       value = value.replace(/\D/g, '');
     }
     // 4b. Duration fields (with 60-mins rollover validation)
@@ -1000,6 +1010,8 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
                   inward_entry_date: todayStr,
                   inward_vehicle_no: '',
                   inward_seal_no: '',
+                  inward_invoice_no: '',
+                  inward_mens_power: '',
                   inward_vehicle_temp: '',
                   inward_material_temp: '',
                   inward_transporter_name: '',
@@ -1164,6 +1176,30 @@ export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }
                     value={formData.inward_seal_no}
                     onChange={handleInputChange}
                     placeholder="e.g. SL-998822"
+                  />
+                </div>
+
+                <div className="inward-form-group">
+                  <label>Invoice No. <ReqStar field="inward_invoice_no" /></label>
+                  <input
+                    type="text"
+                    name="inward_invoice_no"
+                    value={formData.inward_invoice_no}
+                    onChange={handleInputChange}
+                    placeholder="e.g. INV-12345"
+                    required
+                  />
+                </div>
+
+                <div className="inward-form-group">
+                  <label>Mens Power</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    name="inward_mens_power"
+                    value={formData.inward_mens_power}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 4"
                   />
                 </div>
 

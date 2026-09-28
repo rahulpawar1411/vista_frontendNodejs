@@ -597,11 +597,13 @@ export const fetchDashboardStats = async () => {
   return data.stats || data;
 };
 
-/** DO chamber tasks for a day: completed / pending / overdue per operator + warehouse. */
-export const fetchDoTaskOverview = async ({ date } = {}) => {
+/** DO chamber tasks for a day or date range: completed / pending / overdue + daily_series. */
+export const fetchDoTaskOverview = async ({ date, fromDate, toDate } = {}) => {
   const queryParams = new URLSearchParams();
-  const day = toApiDateParam(date);
-  if (day) queryParams.append('date', day);
+  const from = toApiDateParam(fromDate || date);
+  const to = toApiDateParam(toDate || fromDate || date);
+  if (from) queryParams.append('fromDate', from);
+  if (to) queryParams.append('toDate', to);
   const qs = queryParams.toString();
   const res = await fetch(
     `${API_BASE_URL}/dashboard/do-task-overview${qs ? `?${qs}` : ''}`
@@ -768,10 +770,13 @@ export const deleteOperator = async (id) => {
 export const fetchSubAdmins = async () => {
   const res = await fetch(`${API_BASE_URL}/customers`);
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to fetch customers.');
+    throw new Error(await readApiError(res, 'Failed to fetch customers.'));
   }
-  return await res.json();
+  const data = await res.json().catch(() => []);
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.customers)) return data.customers;
+  return [];
 };
 
 export const createSubAdmin = async (data) => {
@@ -793,8 +798,7 @@ export const updateSubAdmin = async (id, data) => {
     body: JSON.stringify(data)
   });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to update customer.');
+    throw new Error(await readApiError(res, 'Failed to update customer.'));
   }
   return await res.json();
 };
@@ -804,8 +808,7 @@ export const deleteSubAdmin = async (id) => {
     method: 'DELETE'
   });
   if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || 'Failed to delete customer.');
+    throw new Error(await readApiError(res, 'Failed to delete customer.'));
   }
   return await res.json();
 };
@@ -859,9 +862,10 @@ export const deleteAppSubAdmin = async (id) => {
 export const fetchAccessScopeOptions = async () => {
   const res = await fetch(`${API_BASE_URL}/dashboard/access-options`);
   if (!res.ok) {
-    throw new Error('Failed to fetch access scope options.');
+    throw new Error(await readApiError(res, 'Failed to fetch access scope options.'));
   }
-  return await res.json();
+  const data = await res.json().catch(() => ({}));
+  return data && typeof data === 'object' ? data : {};
 };
 
 export const submitCustomerReport = async ({ reference_no, message }) => {

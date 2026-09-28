@@ -39,6 +39,8 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
     outward_entry_date: todayStr,
     outward_vehicle_no: '',
     outward_seal_no: '',
+    outward_invoice_no: '',
+    outward_mens_power: '',
     outward_vehicle_temp: '',
     outward_pre_vehicle_temp: '',
     outward_material_temp: '',
@@ -162,6 +164,8 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
         outward_entry_date: entryDateOnly,
         outward_vehicle_no: editData.outward_vehicle_no || '',
         outward_seal_no: editData.outward_seal_no || '',
+        outward_invoice_no: editData.outward_invoice_no || '',
+        outward_mens_power: editData.outward_mens_power ?? '',
         outward_vehicle_temp: editData.outward_pre_vehicle_temp || editData.outward_vehicle_temp || '',
         outward_pre_vehicle_temp: editData.outward_pre_vehicle_temp || editData.outward_vehicle_temp || '',
         outward_material_temp: editData.outward_material_temp || '',
@@ -496,6 +500,7 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
       ['outward_dock_no', 'Dock No.'],
       ['outward_material_type', 'Material Type'],
       ['outward_vehicle_no', 'Vehicle No.'],
+      ['outward_invoice_no', 'Invoice No.'],
       ['outward_transporter_name', 'Transporter Name'],
       ['outward_driver_name', 'Driver Name'],
       ['outward_driver_no', 'Driver Phone No.'],
@@ -512,7 +517,7 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
       ['outward_invoice_qty', 'Invoice Boxes Qty'],
       ['outward_received_boxes_qty', 'Boxes Loaded Qty'],
       ['outward_loading_supervisor_name', 'Loading Supervisor Name']
-      // Seal No., Remarks & Damage Qty are optional
+      // Seal No., Mens Power, Remarks & Damage Qty are optional
     ];
 
     const missingKeys = requiredFields
@@ -706,6 +711,8 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
         outward_entry_date: todayStr,
         outward_vehicle_no: '',
         outward_seal_no: '',
+        outward_invoice_no: '',
+        outward_mens_power: '',
         outward_vehicle_temp: '',
         outward_pre_vehicle_temp: '',
         outward_material_temp: '',
@@ -783,6 +790,9 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
     else if (name === 'outward_seal_no') {
       value = value.toUpperCase();
     }
+    else if (name === 'outward_invoice_no') {
+      value = value.toUpperCase();
+    }
     // 2b. Text fields (names only)
     else if (['outward_driver_name', 'outward_loading_supervisor_name', 'outward_transporter_name'].includes(name)) {
       value = value.replace(/[^a-zA-Z\s]/g, '');
@@ -794,7 +804,7 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
       value = digits.slice(0, maxDigits);
     }
     // 4. Integer fields
-    else if (['outward_pallets_in_qty', 'outward_invoice_qty', 'outward_received_qty', 'outward_received_boxes_qty', 'outward_damage_received_boxes_qty'].includes(name)) {
+    else if (['outward_pallets_in_qty', 'outward_invoice_qty', 'outward_received_qty', 'outward_received_boxes_qty', 'outward_damage_received_boxes_qty', 'outward_mens_power'].includes(name)) {
       value = value.replace(/\D/g, '');
     }
     // 4b. Duration fields
@@ -943,6 +953,8 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
                   outward_entry_date: todayStr,
                   outward_vehicle_no: '',
                   outward_seal_no: '',
+                  outward_invoice_no: '',
+                  outward_mens_power: '',
                   outward_vehicle_temp: '',
                   outward_material_temp: '',
                   outward_transporter_name: '',
@@ -1107,6 +1119,30 @@ export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu 
                     value={formData.outward_seal_no}
                     onChange={handleInputChange}
                     placeholder="e.g. SL-998822"
+                  />
+                </div>
+
+                <div className="inward-form-group">
+                  <label>Invoice No. <ReqStar field="outward_invoice_no" /></label>
+                  <input
+                    type="text"
+                    name="outward_invoice_no"
+                    value={formData.outward_invoice_no}
+                    onChange={handleInputChange}
+                    placeholder="e.g. INV-12345"
+                    required
+                  />
+                </div>
+
+                <div className="inward-form-group">
+                  <label>Mens Power</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    name="outward_mens_power"
+                    value={formData.outward_mens_power}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 4"
                   />
                 </div>
 

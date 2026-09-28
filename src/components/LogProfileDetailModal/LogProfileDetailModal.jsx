@@ -255,6 +255,8 @@ export default function LogProfileDetailModal({
                       <ProfileField label="Client Name" value={log.inward_client_name} />
                       <ProfileField label="Dock Number" value={log.inward_dock_no || '-'} />
                       <ProfileField label="Seal Number" value={log.inward_seal_no || '-'} />
+                      <ProfileField label="Invoice No." value={log.inward_invoice_no || '-'} />
+                      <ProfileField label="Mens Power" value={log.inward_mens_power ?? '-'} />
                     </div>
                   </div>
                   <div className="profile-group-card">
@@ -335,6 +337,8 @@ export default function LogProfileDetailModal({
                       <ProfileField label="Client Name" value={log.outward_client_name} />
                       <ProfileField label="Dock Number" value={log.outward_dock_no || '-'} />
                       <ProfileField label="Seal Number" value={log.outward_seal_no || '-'} />
+                      <ProfileField label="Invoice No." value={log.outward_invoice_no || '-'} />
+                      <ProfileField label="Mens Power" value={log.outward_mens_power ?? '-'} />
                     </div>
                   </div>
                   <div className="profile-group-card">

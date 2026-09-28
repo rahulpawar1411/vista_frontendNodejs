@@ -31,6 +31,7 @@ import {
 } from '../../services/api';
 import { formatMasterLabel } from '../../utils/masterLabels';
 import { generateClientCode } from '../../utils/generateClientCode';
+import { generateWarehouseCode } from '../../utils/generateWarehouseCode';
 import './MasterDataPanel.css';
 
 function StatusBadge({ active }) {
@@ -100,6 +101,7 @@ export default function MasterDataPanel() {
   const [whCity, setWhCity] = useState('');
   const [editingWh, setEditingWh] = useState(null);
   const [savingWh, setSavingWh] = useState(false);
+  const whCodeManualRef = useRef(false);
 
   const [clCode, setClCode] = useState('');
   const [clName, setClName] = useState('');
@@ -187,6 +189,13 @@ export default function MasterDataPanel() {
     if (code !== clCode) setClCode(code);
   }, [clName, clWarehouse, activeWarehouses, editingCl, clCode]);
 
+  useEffect(() => {
+    if (editingWh || whCodeManualRef.current) return;
+    const existingCodes = (warehouses || []).map((w) => w.warehouse_code);
+    const code = generateWarehouseCode(whName, '', existingCodes);
+    if (code !== whCode) setWhCode(code);
+  }, [whName, warehouses, editingWh, whCode]);
+
   const needle = search.trim().toLowerCase();
 
   const filteredWarehouses = useMemo(() => {
@@ -220,6 +229,7 @@ export default function MasterDataPanel() {
   }, [clients, needle]);
 
   const resetWhForm = () => {
+    whCodeManualRef.current = false;
     setEditingWh(null);
     setWhCode('');
     setWhName('');
@@ -266,8 +276,12 @@ export default function MasterDataPanel() {
         });
         setSuccess('Warehouse updated successfully.');
       } else {
+        const existingCodes = (warehouses || []).map((w) => w.warehouse_code);
+        const autoCode =
+          String(whCode || '').trim().toUpperCase() ||
+          generateWarehouseCode(whName, '', existingCodes);
         await createMasterWarehouse({
-          warehouse_code: whCode,
+          warehouse_code: autoCode,
           warehouse_name: whName,
           city: whCity
         });
@@ -478,12 +492,12 @@ export default function MasterDataPanel() {
                     <span>Warehouse Code</span>
                     <input
                       value={whCode}
-                      onChange={(e) => setWhCode(e.target.value.toUpperCase().replace(/\s+/g, '-'))}
-                      placeholder="WH-PUN-01"
-                      required
+                      readOnly
+                      disabled
+                      placeholder="WH-PUNE-01"
                       autoComplete="off"
                     />
-                    <em>Unique code used in exports and DO assignment.</em>
+                    <em>Auto from warehouse name (WH-PUNE-01, WH-PUNE-02…). Not editable.</em>
                   </label>
                 ) : (
                   <label className="sa-op-field">
@@ -496,8 +510,11 @@ export default function MasterDataPanel() {
                   <span>Warehouse Name</span>
                   <input
                     value={whName}
-                    onChange={(e) => setWhName(e.target.value)}
-                    placeholder="Pune Cold Store"
+                    onChange={(e) => {
+                      whCodeManualRef.current = false;
+                      setWhName(e.target.value);
+                    }}
+                    placeholder="Pune"
                     required
                   />
                 </label>

@@ -38,6 +38,12 @@ import {
   fetchMasterWarehouses, fetchMasterClients
 } from '../../services/api';
 import MasterDataPanel from '../../components/MasterDataPanel/MasterDataPanel';
+import {
+  pickComplianceZone,
+  getChamberTempRange,
+  getChamberTempDeviation,
+  formatTempDisplay
+} from '../../utils/chamberTempCompliance';
 import { formatMasterLabel, lookupMasterLabel } from '../../utils/masterLabels';
 import {
   requireExportDates,
@@ -656,6 +662,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [opChambersList, setOpChambersList] = useState([]);
   const [opTaskFromDate, setOpTaskFromDate] = useState('');
   const [opTaskToDate, setOpTaskToDate] = useState('');
+  const [opTaskListPage, setOpTaskListPage] = useState(1);
   const [opTaskAppliedFrom, setOpTaskAppliedFrom] = useState('');
   const [opTaskAppliedTo, setOpTaskAppliedTo] = useState('');
   const [opTaskLogs, setOpTaskLogs] = useState([]);
@@ -668,6 +675,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [opFullName, setOpFullName] = useState('');
   const [opPhoneNo, setOpPhoneNo] = useState('');
   const [opWarehouseName, setOpWarehouseName] = useState('');
+  const [opWarehouseSuggestOpen, setOpWarehouseSuggestOpen] = useState(false);
   const [opChamberLimit, setOpChamberLimit] = useState(4);
   const [showPassword, setShowPassword] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -1008,6 +1016,19 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const renderChamberLogFormView = (log, { enableCopyRef = false } = {}) => {
     if (!log) return null;
     const tempVal = log.chamber_temp ?? log.box_temp;
+    const chamberType =
+      pickComplianceZone(log.chamber_type) || String(log.chamber_type || '').trim() || 'Frozen';
+    const tempDeviation = getChamberTempDeviation(tempVal, chamberType);
+    const tempOutOfRange = tempDeviation != null;
+    const tempRange = getChamberTempRange(chamberType);
+    const tempAlertColor = '#b91c1c';
+    const tempOkColor = '#15803d';
+    const typeLabel =
+      tempDeviation === 'low'
+        ? `< ${chamberType}`
+        : tempDeviation === 'high'
+          ? `> ${chamberType}`
+          : chamberType;
     const shiftLabel = resolveShiftLabel(log.shift, log.inspection_time, log.created_at);
     const updateRows = parseUpdateDetails(log.update_details);
     const hasUpdates = Number(log.update_count) > 0 || updateRows.length > 0;
@@ -1096,10 +1117,21 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   fontSize: '1.15rem',
                   fontWeight: 900,
                   marginTop: 2,
-                  color: tempVal != null && Number(tempVal) <= -18 ? '#15803d' : '#b91c1c'
+                  color: tempVal == null ? '#0f172a' : tempOutOfRange ? tempAlertColor : tempOkColor
                 }}
               >
                 {tempVal != null ? `${tempVal}°C` : '-'}
+              </div>
+              <div
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  marginTop: 2,
+                  color: tempOutOfRange ? tempAlertColor : '#64748b'
+                }}
+              >
+                {typeLabel}
+                {tempOutOfRange && tempRange ? ` · ${tempRange.label}` : ''}
               </div>
             </div>
             <div>
@@ -1147,7 +1179,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             {formField('Reference No', refNode)}
             {formField('Client Name', log.client_name || '-')}
             {formField('Chamber Name', log.chamber_name || '-')}
-            {formField('Chamber Type', log.chamber_type || 'Frozen')}
+            {formField('Chamber Type', typeLabel, {
+              valueStyle: tempOutOfRange
+                ? { fontWeight: 800, color: tempAlertColor }
+                : undefined
+            })}
             {formField('Inspection Time', log.inspection_time || '-')}
             {formField('Shift', shiftLabel)}
             {formField(
@@ -1156,10 +1192,22 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               {
                 valueStyle: {
                   fontWeight: 700,
-                  color: tempVal != null && Number(tempVal) <= -18 ? '#15803d' : '#b91c1c'
+                  color:
+                    tempVal == null
+                      ? undefined
+                      : tempOutOfRange
+                        ? tempAlertColor
+                        : tempOkColor
                 }
               }
             )}
+            {tempOutOfRange && tempRange
+              ? formField(
+                  'Compliance',
+                  `${tempDeviation === 'low' ? '< kam' : '> zyada'} · allowed ${tempRange.label}`,
+                  { valueStyle: { fontWeight: 700, color: tempAlertColor }, full: true }
+                )
+              : null}
             {formField('Box Count', boxCount)}
             {formField('Supervisor Name', log.monitor_supervisor_name || '-')}
             {formField('Warehouse', log.warehouse_name || 'Generic')}
@@ -1229,8 +1277,6 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [doTaskFilter, setDoTaskFilter] = useState('all');
   const [doTaskSearch, setDoTaskSearch] = useState('');
   const [doTaskDate, setDoTaskDate] = useState(() => localDateStr());
-
-
 
   // Inventory Log States
   const [inventoryLogs, setInventoryLogs] = useState([]);
@@ -1917,6 +1963,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpTaskFilter('all');
     setOpTaskChamberFilter('all');
     loadOpTaskStatus(op, from, to);
+    setOpTaskListPage(1);
   };
 
   const handleToggleOpMappings = async (op) => {
@@ -2911,13 +2958,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         toApiDateParam(dateOverride !== undefined ? dateOverride : doTaskDate) ||
         localDateStr();
       const data = await fetchDoTaskOverview({ date });
-      // Guard: older servers ignore ?date= and always return "today"
       if (data?.today && data.today !== date) {
         setDoTaskError(
           `Server returned ${data.today} instead of ${date}. Restart backend to enable date filter.`
         );
       }
-      const operators = Array.isArray(data?.operators)
+      const nextOperators = Array.isArray(data?.operators)
         ? data.operators.map((op) => ({
             ...op,
             total_inward: Number(op.total_inward) || 0,
@@ -2933,7 +2979,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         today_inward: Number(data?.summary?.today_inward) || 0,
         today_outward: Number(data?.summary?.today_outward) || 0
       };
-      setDoTaskOverview(data ? { ...data, summary, operators } : null);
+      setDoTaskOverview(data ? { ...data, summary, operators: nextOperators } : null);
       if (data?.today) setDoTaskDate(data.today);
     } catch (err) {
       console.error('Error loading DO daily tasks:', err);
@@ -3275,7 +3321,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         const accessScope = op.warehouse_name
           ? `Access: ${op.warehouse_name}`
           : 'Access: Not Configured';
-        const chambers = `1 to ${op.chamber_limit || 4}`;
+        const chambers = String(op.chamber_limit || 4);
         const registered = op.created_at
           ? new Date(op.created_at).toLocaleDateString('en-GB')
           : '-';
@@ -3571,7 +3617,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       );
     } else if (historyTab === 'inward') {
       const headers = [
-        "Inward Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Vehicle No", "Seal No", 
+        "Inward Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Vehicle No", "Seal No", "Invoice No", "Mens Power",
         "Vehicle Temp (°C)", "Material Temp (°C)", "Transporter Name", "Driver Name", "Driver Contact No.", 
         "Client Code", "Client Name", "Dock No", "Vehicle Reporting Time", "Unloading Start Time", "Unloading Duration", 
         "Unloading End Time", "Pallets Qty", "Invoice Qty", "Received Pallets", 
@@ -3589,6 +3635,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           log.operator_email || '-',
           log.inward_vehicle_no || '',
           log.inward_seal_no || '',
+          log.inward_invoice_no || '',
+          log.inward_mens_power !== undefined && log.inward_mens_power !== null ? log.inward_mens_power : '',
           log.inward_vehicle_temp !== undefined ? `${log.inward_vehicle_temp}°C` : '',
           log.inward_material_temp !== undefined ? `${log.inward_material_temp}°C` : '',
           log.inward_transporter_name || '',
@@ -3632,7 +3680,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       );
     } else if (historyTab === 'outward') {
       const headers = [
-        "Outward Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Vehicle No", "Seal No", 
+        "Outward Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Vehicle No", "Seal No", "Invoice No", "Mens Power",
         "Vehicle Temp (°C)", "Pre-Cooling Temp (°C)", "Material Temp (°C)", "Transporter Name", "Driver Name", 
         "Driver Contact No.", "Client Code", "Client Name", "Dock No", "Vehicle Reporting Time", "Loading Start Time", 
         "Loading Duration", "Loading End Time", "Pallets Qty", "Invoice Qty", 
@@ -3650,6 +3698,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           log.operator_email || '-',
           log.outward_vehicle_no || '',
           log.outward_seal_no || '',
+          log.outward_invoice_no || '',
+          log.outward_mens_power !== undefined && log.outward_mens_power !== null ? log.outward_mens_power : '',
           log.outward_vehicle_temp !== undefined ? `${log.outward_vehicle_temp}°C` : '',
           log.outward_pre_vehicle_temp !== undefined ? `${log.outward_pre_vehicle_temp}°C` : '',
           log.outward_material_temp !== undefined ? `${log.outward_material_temp}°C` : '',
@@ -3805,6 +3855,15 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
     if (!opEmail || !opFullName || !opPhoneNo || !opWarehouseName) {
       setOpError('All fields (Full Name, Phone No., Email ID, Warehouse / Data Access) are required.');
+      return;
+    }
+    if (
+      warehouseSelectOptions.length > 0 &&
+      !warehouseSelectOptions.some(
+        (w) => String(w.value).trim().toLowerCase() === String(opWarehouseName).trim().toLowerCase()
+      )
+    ) {
+      setOpError('Select a warehouse from the Master Data list.');
       return;
     }
     const phoneLocal = toLocalTenDigitPhone(opPhoneNo);
@@ -3996,7 +4055,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpEmail(op.email);
     setOpFullName(op.full_name || '');
     setOpPhoneNo(toLocalTenDigitPhone(op.phone_no));
-    setOpWarehouseName(op.warehouse_code || op.warehouse_name || '');
+    setOpWarehouseName(op.warehouse_name || '');
     setOpChamberLimit(op.chamber_limit || 4);
     setOpPassword(''); // Leave blank unless updating
     setOpError('');
@@ -4034,7 +4093,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpNewChamberType('Frozen');
     setOpMasterActivities([]);
     setOpMasterActivitiesError('');
-    const { fromDate, toDate } = getDefaultOpTaskRange(1); // task status: today
+    const { fromDate, toDate } = getDefaultOpTaskRange(7); // task status: last 7 days
     const masterRange = getDefaultOpTaskRange(30); // master activity: last 30 days
     setOpTaskFromDate(fromDate);
     setOpTaskToDate(toDate);
@@ -4046,6 +4105,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpMasterAppliedTo(masterRange.toDate);
     setOpTaskFilter('all');
     setOpTaskChamberFilter('all');
+    setOpTaskListPage(1);
     setOpTaskLogs([]);
     setOpTaskLogsError('');
 
@@ -4200,6 +4260,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpFullName('');
     setOpPhoneNo('');
     setOpWarehouseName('');
+    setOpWarehouseSuggestOpen(false);
     setOpChamberLimit(4);
     setOpPassword('');
     setShowPassword(false);
@@ -4214,9 +4275,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setSubAdminError('');
     try {
       const data = await fetchSubAdmins();
-      setSubAdmins(data || []);
+      setSubAdmins(Array.isArray(data) ? data : []);
     } catch (err) {
       setSubAdminError(err.message || 'Failed to fetch customers.');
+      setSubAdmins([]);
     } finally {
       setLoadingSubAdmins(false);
     }
@@ -4255,56 +4317,95 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     const seen = new Set();
     const out = [];
     (accessScopeOptions.warehouseMasters || []).forEach((w) => {
-      const value = w.warehouse_code || w.warehouse_name;
-      if (!value) return;
-      seen.add(String(w.warehouse_code || '').toLowerCase());
-      seen.add(String(w.warehouse_name || '').toLowerCase());
-      out.push({ value, label: formatMasterLabel(w.warehouse_code, w.warehouse_name) });
+      const name = String(w.warehouse_name || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({
+        value: name,
+        code: w.warehouse_code || '',
+        label: formatMasterLabel(w.warehouse_code, w.warehouse_name)
+      });
     });
     (accessScopeOptions.warehouses || []).forEach((name) => {
-      const key = String(name || '').trim().toLowerCase();
-      if (!key || seen.has(key)) return;
+      const n = String(name || '').trim();
+      const key = n.toLowerCase();
+      if (!n || seen.has(key)) return;
       seen.add(key);
-      out.push({ value: name, label: name });
+      out.push({ value: n, code: '', label: n });
     });
-    return out;
+    return out.sort((a, b) => a.label.localeCompare(b.label));
   }, [accessScopeOptions.warehouseMasters, accessScopeOptions.warehouses]);
 
-  // Clients shown in Customer form = only those linked to selected warehouses
+  const warehouseTypeSuggestions = useMemo(() => {
+    const q = String(opWarehouseName || '').trim().toLowerCase();
+    if (!q) return warehouseSelectOptions.slice(0, 12);
+    return warehouseSelectOptions
+      .filter((w) => {
+        const label = String(w.label || '').toLowerCase();
+        const value = String(w.value || '').toLowerCase();
+        const code = String(w.code || '').toLowerCase();
+        return label.includes(q) || value.includes(q) || code.includes(q);
+      })
+      .slice(0, 12);
+  }, [warehouseSelectOptions, opWarehouseName]);
+
+  // Clients shown in Customer form = linked to selected warehouses (name OR code)
   const subAdminClientOptions = useMemo(() => {
     if (!subAdminSelectedWarehouses.length) return [];
-    const selectedKeys = subAdminSelectedWarehouses.map((w) => String(w).trim().toLowerCase());
+    const selectedKeys = new Set();
+    subAdminSelectedWarehouses.forEach((w) => {
+      const s = String(w || '').trim().toLowerCase();
+      if (!s) return;
+      selectedKeys.add(s);
+      (accessScopeOptions.warehouseMasters || []).forEach((m) => {
+        const name = String(m.warehouse_name || '').trim().toLowerCase();
+        const code = String(m.warehouse_code || '').trim().toLowerCase();
+        if (s === name || s === code) {
+          if (name) selectedKeys.add(name);
+          if (code) selectedKeys.add(code);
+        }
+      });
+    });
     const seen = new Set();
     const out = [];
+
+    const pushOpt = (value, label) => {
+      const v = String(value || '').trim();
+      if (!v) return;
+      const key = v.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ value: v, label: label || v });
+    };
 
     (accessScopeOptions.clientMasters || []).forEach((c) => {
       const whCode = String(c.warehouse_code || '').trim().toLowerCase();
       const whName = String(c.warehouse_name || '').trim().toLowerCase();
-      if (selectedKeys.includes(whCode) || selectedKeys.includes(whName)) {
-        const value = c.client_code || c.client_name;
-        const key = String(value || '').trim().toLowerCase();
-        if (!key || seen.has(key)) return;
-        seen.add(key);
-        seen.add(String(c.client_name || '').trim().toLowerCase());
-        out.push({ value, label: formatMasterLabel(c.client_code, c.client_name) });
+      if (selectedKeys.has(whCode) || selectedKeys.has(whName)) {
+        // Prefer display name — matches how scope is stored / used on mobile
+        pushOpt(
+          c.client_name || c.client_code,
+          formatMasterLabel(c.client_code, c.client_name)
+        );
       }
     });
 
     const map = accessScopeOptions.warehouseClients || {};
     Object.entries(map).forEach(([wh, clients]) => {
       const key = String(wh).trim().toLowerCase();
-      if (!selectedKeys.includes(key)) return;
-      (clients || []).forEach((c) => {
-        const name = String(c || '').trim();
-        const k = name.toLowerCase();
-        if (!name || seen.has(k)) return;
-        seen.add(k);
-        out.push({ value: name, label: name });
-      });
+      if (!selectedKeys.has(key)) return;
+      (clients || []).forEach((c) => pushOpt(c, c));
     });
 
+    // Fallback: flat clients list from access-options when masters/map empty
+    if (out.length === 0 && Array.isArray(accessScopeOptions.clients)) {
+      accessScopeOptions.clients.forEach((c) => pushOpt(c, c));
+    }
+
     return out.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
-  }, [accessScopeOptions.warehouseClients, accessScopeOptions.clientMasters, subAdminSelectedWarehouses]);
+  }, [accessScopeOptions.warehouseClients, accessScopeOptions.clientMasters, accessScopeOptions.clients, accessScopeOptions.warehouseMasters, subAdminSelectedWarehouses]);
 
   // Drop selected clients that no longer belong to selected warehouses
   useEffect(() => {
@@ -4312,14 +4413,45 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       setSubAdminSelectedClients((prev) => (prev.length ? [] : prev));
       return;
     }
+    // Wait until options loaded — don't wipe saved clients while list still empty
     if (!subAdminClientOptions.length) return;
     setSubAdminSelectedClients((prev) => {
-      const allowed = new Set(subAdminClientOptions.map((c) => String(c.value || c).trim().toLowerCase()));
-      const next = prev.filter((c) => allowed.has(String(c).trim().toLowerCase()));
-      if (next.length === prev.length && next.every((v, i) => v === prev[i])) return prev;
-      return next;
+      const allowed = new Set();
+      const codeToName = new Map();
+      (accessScopeOptions.clientMasters || []).forEach((c) => {
+        const name = String(c.client_name || '').trim();
+        const code = String(c.client_code || '').trim();
+        if (name) allowed.add(name.toLowerCase());
+        if (code) {
+          allowed.add(code.toLowerCase());
+          if (name) codeToName.set(code.toLowerCase(), name);
+        }
+      });
+      subAdminClientOptions.forEach((c) => {
+        allowed.add(String(c.value || c).trim().toLowerCase());
+      });
+      const next = prev
+        .map((c) => {
+          const raw = String(c || '').trim();
+          if (!raw) return '';
+          const key = raw.toLowerCase();
+          if (codeToName.has(key)) return codeToName.get(key);
+          return raw;
+        })
+        .filter((c) => c && allowed.has(String(c).trim().toLowerCase()));
+      // de-dupe after code→name normalize
+      const seen = new Set();
+      const deduped = [];
+      next.forEach((c) => {
+        const k = c.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        deduped.push(c);
+      });
+      if (deduped.length === prev.length && deduped.every((v, i) => v === prev[i])) return prev;
+      return deduped;
     });
-  }, [subAdminSelectedWarehouses, subAdminClientOptions]);
+  }, [subAdminSelectedWarehouses, subAdminClientOptions, accessScopeOptions.clientMasters]);
 
   const handleSaveSubAdmin = async (e) => {
     e.preventDefault();
@@ -4500,10 +4632,39 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setSubAdminFullName(sa.full_name || '');
     setSubAdminPhoneNo(toLocalTenDigitPhone(sa.phone_no));
     setSubAdminPassword('');
-    setSubAdminSelectedClients(sa.allowed_clients ? sa.allowed_clients.split(',').map(c => c.trim()).filter(Boolean) : []);
-    setSubAdminSelectedWarehouses(sa.allowed_warehouses ? sa.allowed_warehouses.split(',').map(w => w.trim()).filter(Boolean) : []);
+    // Normalize client tokens to master client_name when possible
+    const rawClients = sa.allowed_clients
+      ? sa.allowed_clients.split(',').map((c) => c.trim()).filter(Boolean)
+      : [];
+    const clientMasters = accessScopeOptions.clientMasters || [];
+    const normalizedClients = rawClients.map((token) => {
+      const t = String(token).trim().toLowerCase();
+      const hit = clientMasters.find((m) => {
+        const name = String(m.client_name || '').trim().toLowerCase();
+        const code = String(m.client_code || '').trim().toLowerCase();
+        return t === name || t === code;
+      });
+      return hit?.client_name || token;
+    });
+    setSubAdminSelectedClients(normalizedClients);
+    // Normalize warehouse tokens to master warehouse_name when possible
+    const rawWh = sa.allowed_warehouses
+      ? sa.allowed_warehouses.split(',').map((w) => w.trim()).filter(Boolean)
+      : [];
+    const masters = accessScopeOptions.warehouseMasters || [];
+    const normalizedWh = rawWh.map((token) => {
+      const t = String(token).trim().toLowerCase();
+      const hit = masters.find((m) => {
+        const name = String(m.warehouse_name || '').trim().toLowerCase();
+        const code = String(m.warehouse_code || '').trim().toLowerCase();
+        return t === name || t === code;
+      });
+      return hit?.warehouse_name || token;
+    });
+    setSubAdminSelectedWarehouses(normalizedWh);
     setSubAdminError('');
     setSubAdminSuccess('');
+    loadAccessScopeOptions();
   };
 
   const cancelEditSubAdmin = () => {
@@ -4519,6 +4680,56 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setSubAdminSuccess('');
     setSubAdminSearch('');
   };
+
+  // After access-options / masters load, re-normalize chips while editing
+  useEffect(() => {
+    if (!editingSubAdmin) return;
+    const whMasters = accessScopeOptions.warehouseMasters || [];
+    const clMasters = accessScopeOptions.clientMasters || [];
+    if (!whMasters.length && !clMasters.length) return;
+
+    if (whMasters.length) {
+      setSubAdminSelectedWarehouses((prev) => {
+        if (!prev.length) return prev;
+        let changed = false;
+        const next = prev.map((token) => {
+          const t = String(token).trim().toLowerCase();
+          const hit = whMasters.find((m) => {
+            const name = String(m.warehouse_name || '').trim().toLowerCase();
+            const code = String(m.warehouse_code || '').trim().toLowerCase();
+            return t === name || t === code;
+          });
+          if (hit?.warehouse_name && hit.warehouse_name !== token) {
+            changed = true;
+            return hit.warehouse_name;
+          }
+          return token;
+        });
+        return changed ? next : prev;
+      });
+    }
+
+    if (clMasters.length) {
+      setSubAdminSelectedClients((prev) => {
+        if (!prev.length) return prev;
+        let changed = false;
+        const next = prev.map((token) => {
+          const t = String(token).trim().toLowerCase();
+          const hit = clMasters.find((m) => {
+            const name = String(m.client_name || '').trim().toLowerCase();
+            const code = String(m.client_code || '').trim().toLowerCase();
+            return t === name || t === code;
+          });
+          if (hit?.client_name && hit.client_name !== token) {
+            changed = true;
+            return hit.client_name;
+          }
+          return token;
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [editingSubAdmin, accessScopeOptions.warehouseMasters, accessScopeOptions.clientMasters]);
 
   const clearProfilePasswordForm = () => {
     setNewAdminPassword('');
@@ -6157,6 +6368,73 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               </div>
             </section>
 
+            <section className="sa-op-card">
+              <div className="sa-op-dir-toolbar">
+                <div>
+                  <h2 className="sa-op-title">Operational Shortcuts</h2>
+                  <p className="sa-op-sub">Jump to common Super Admin actions</p>
+                </div>
+              </div>
+              <div className="sa-dash-shortcuts">
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('data_operators')}
+                >
+                  <UserPlus size={14} />
+                  <span>Register Operator</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sa-dash-shortcut${hasPendingRequests ? ' alert' : ''}`}
+                  onClick={() => {
+                    setActiveMenu('activity_logs');
+                    setAuditSubTab('permission_log');
+                  }}
+                >
+                  <Lock size={14} />
+                  <span>Permission Requests</span>
+                  {hasPendingRequests ? <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} /> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`sa-dash-shortcut${hasNewDOChanges ? ' alert' : ''}`}
+                  onClick={() => {
+                    setActiveMenu('activity_logs');
+                    setAuditSubTab('do_changes');
+                  }}
+                >
+                  <Activity size={14} />
+                  <span>DO Operations Log</span>
+                  {hasNewDOChanges ? <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} /> : null}
+                </button>
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('history_logs')}
+                >
+                  <History size={14} />
+                  <span>System Logs</span>
+                </button>
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('profile_lookup')}
+                >
+                  <Search size={14} />
+                  <span>Profile Lookup</span>
+                </button>
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('customer_reports')}
+                >
+                  <MessageSquareWarning size={14} />
+                  <span>Customer Reports</span>
+                </button>
+              </div>
+            </section>
+
             <section className="sa-op-card sa-dash-tasks">
               <div className="sa-dash-task-head">
                 <div className="sa-dash-task-head-left">
@@ -6189,46 +6467,6 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   {loadingDoTasks ? <Loader2 size={12} className="sa-spin" /> : null}
                   {loadingDoTasks ? 'Loading' : 'Refresh'}
                 </button>
-              </div>
-
-              <div className="sa-dash-task-metrics">
-                <div className="sa-dash-task-metric done" title="Morning completed / expected">
-                  <span>Morning</span>
-                  <strong>
-                    {Number(doTaskSummary.morning_completed) || 0}
-                    <i>/{Number(doTaskSummary.morning_expected) || 0}</i>
-                  </strong>
-                </div>
-                <div className="sa-dash-task-metric evening" title="Evening completed / expected">
-                  <span>Evening</span>
-                  <strong>
-                    {Number(doTaskSummary.evening_completed) || 0}
-                    <i>/{Number(doTaskSummary.evening_expected) || 0}</i>
-                  </strong>
-                </div>
-                <div className="sa-dash-task-metric overdue" title="Missing logs in prior 5 days">
-                  <span>Overdue</span>
-                  <strong>{Number(doTaskSummary.overdue) || 0}</strong>
-                </div>
-              </div>
-
-              <div className="sa-dash-task-metrics sa-dash-task-metrics-io" title="Inward / Outward log counts from database">
-                <div className="sa-dash-task-metric inward" title="All inward records till now (all DOs)">
-                  <span>Total Inward</span>
-                  <strong>{Number(doTaskSummary.total_inward) || 0}</strong>
-                </div>
-                <div className="sa-dash-task-metric outward" title="All outward records till now (all DOs)">
-                  <span>Total Outward</span>
-                  <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
-                </div>
-                <div className="sa-dash-task-metric inward-today" title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
-                  <span>{doTaskDate === localDateStr() ? 'Today Inward' : 'Day Inward'}</span>
-                  <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
-                </div>
-                <div className="sa-dash-task-metric outward-today" title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
-                  <span>{doTaskDate === localDateStr() ? 'Today Outward' : 'Day Outward'}</span>
-                  <strong>{Number(doTaskSummary.today_outward) || 0}</strong>
-                </div>
               </div>
 
               <div className="sa-dash-task-tools">
@@ -6289,6 +6527,46 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 </label>
               </div>
 
+              <div className="sa-dash-task-metrics">
+                <div className="sa-dash-task-metric done" title="Morning completed / expected">
+                  <span>Morning</span>
+                  <strong>
+                    {Number(doTaskSummary.morning_completed) || 0}
+                    <i>/{Number(doTaskSummary.morning_expected) || 0}</i>
+                  </strong>
+                </div>
+                <div className="sa-dash-task-metric evening" title="Evening completed / expected">
+                  <span>Evening</span>
+                  <strong>
+                    {Number(doTaskSummary.evening_completed) || 0}
+                    <i>/{Number(doTaskSummary.evening_expected) || 0}</i>
+                  </strong>
+                </div>
+                <div className="sa-dash-task-metric overdue" title="Missing logs in prior 5 days">
+                  <span>Overdue</span>
+                  <strong>{Number(doTaskSummary.overdue) || 0}</strong>
+                </div>
+              </div>
+
+              <div className="sa-dash-task-metrics sa-dash-task-metrics-io" title="Inward / Outward log counts from database">
+                <div className="sa-dash-task-metric inward" title="All inward records till now (all DOs)">
+                  <span>Total Inward</span>
+                  <strong>{Number(doTaskSummary.total_inward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric outward" title="All outward records till now (all DOs)">
+                  <span>Total Outward</span>
+                  <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric inward-today" title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
+                  <span>{doTaskDate === localDateStr() ? 'Today Inward' : 'Day Inward'}</span>
+                  <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric outward-today" title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
+                  <span>{doTaskDate === localDateStr() ? 'Today Outward' : 'Day Outward'}</span>
+                  <strong>{Number(doTaskSummary.today_outward) || 0}</strong>
+                </div>
+              </div>
+
               {doTaskError ? (
                 <div className="sa-op-banner-wrap">
                   <LoadErrorBanner
@@ -6314,84 +6592,94 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       No submissions on this date. Choose another day to see completed Morning / Evening counts.
                     </div>
                   ) : null}
-                  <div className="sa-dash-task-cols">
-                    <span />
-                    <span>Operator</span>
-                    <span>Warehouse</span>
-                    <span>Morning</span>
-                    <span>Evening</span>
-                    <span>Over</span>
-                    <span title="Total · Today">In</span>
-                    <span title="Total · Today">Out</span>
-                  </div>
-                  {doTaskRows.map((op, idx) => {
-                    const totalTasks = Number(op.assignment_count) || 0;
-                    const mornExp = Number(op.morning_expected) || totalTasks;
-                    const eveExp = Number(op.evening_expected) || totalTasks;
-                    const mornDone = Number(op.morning_completed) || 0;
-                    const eveDone = Number(op.evening_completed) || 0;
-                    const overdue = Number(op.overdue) || 0;
-                    const mornPend = Number(op.morning_pending) || Math.max(0, mornExp - mornDone);
-                    const evePend = Number(op.evening_pending) || Math.max(0, eveExp - eveDone);
-                    const mornPct = mornExp > 0 ? Math.min(100, Math.round((mornDone / mornExp) * 100)) : 0;
-                    const evePct = eveExp > 0 ? Math.min(100, Math.round((eveDone / eveExp) * 100)) : 0;
-                    const inTotal = Number(op.total_inward) || 0;
-                    const outTotal = Number(op.total_outward) || 0;
-                    const inToday = Number(op.today_inward) || 0;
-                    const outToday = Number(op.today_outward) || 0;
-                    const tone =
-                      overdue > 0
-                        ? 'bad'
-                        : mornPend > 0 || evePend > 0
-                          ? 'warn'
-                          : mornExp + eveExp > 0
-                            ? 'good'
-                            : 'muted';
-                    return (
-                      <button
-                        key={`${op.id || op.email || op.name}-${idx}`}
-                        type="button"
-                        className={`sa-dash-task-row tone-${tone}`}
-                        onClick={() => openDoFromDashboard(op)}
-                        title={`${op.name || op.full_name || 'DO'} · Inward ${inTotal} (today ${inToday}) · Outward ${outTotal} (today ${outToday})`}
-                      >
-                        <span className="sa-dash-task-dot" />
-                        <strong>{op.name || op.full_name || 'DO'}</strong>
-                        <em>{op.warehouse_name || '—'}</em>
-                        <span
-                          className={`sa-dash-task-shift${mornPend > 0 ? ' pending' : mornExp > 0 ? ' done' : ''}`}
-                        >
-                          <span className="sa-dash-task-shift-top">
-                            <b>{mornDone}</b>
-                            <i>/{mornExp}</i>
-                          </span>
-                          <span className="sa-dash-task-bar" aria-hidden>
-                            <span style={{ width: `${mornPct}%` }} />
-                          </span>
-                        </span>
-                        <span
-                          className={`sa-dash-task-shift${evePend > 0 ? ' pending' : eveExp > 0 ? ' done' : ''}`}
-                        >
-                          <span className="sa-dash-task-shift-top">
-                            <b>{eveDone}</b>
-                            <i>/{eveExp}</i>
-                          </span>
-                          <span className="sa-dash-task-bar" aria-hidden>
-                            <span style={{ width: `${evePct}%` }} />
-                          </span>
-                        </span>
-                        <b className={`overdue${overdue > 0 ? ' hot' : ''}`}>{overdue}</b>
-                        <span className="sa-dash-task-io inward" title={`Inward total ${inTotal} · today ${inToday}`}>
-                          <b>{inTotal}</b>
-                          <i>·{inToday}</i>
-                        </span>
-                        <span className="sa-dash-task-io outward" title={`Outward total ${outTotal} · today ${outToday}`}>
-                          <b>{outTotal}</b>
-                          <i>·{outToday}</i>
-                        </span>
-                      </button>
-                    );
-                  })}
+                  <table className="sa-dash-task-table">
+                    <thead>
+                      <tr>
+                        <th className="sa-dash-task-th-status" aria-label="Status" />
+                        <th>Operator</th>
+                        <th>Warehouse</th>
+                        <th>Morning</th>
+                        <th>Evening</th>
+                        <th>Overdue</th>
+                        <th title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
+                          {doTaskDate === localDateStr() ? 'Today In' : 'Day In'}
+                        </th>
+                        <th title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
+                          {doTaskDate === localDateStr() ? 'Today Out' : 'Day Out'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doTaskRows.map((op, idx) => {
+                        const totalTasks = Number(op.assignment_count) || 0;
+                        const mornExp = Number(op.morning_expected) || totalTasks;
+                        const eveExp = Number(op.evening_expected) || totalTasks;
+                        const mornDone = Number(op.morning_completed) || 0;
+                        const eveDone = Number(op.evening_completed) || 0;
+                        const overdue = Number(op.overdue) || 0;
+                        const mornPend = Number(op.morning_pending) || Math.max(0, mornExp - mornDone);
+                        const evePend = Number(op.evening_pending) || Math.max(0, eveExp - eveDone);
+                        const mornPct = mornExp > 0 ? Math.min(100, Math.round((mornDone / mornExp) * 100)) : 0;
+                        const evePct = eveExp > 0 ? Math.min(100, Math.round((eveDone / eveExp) * 100)) : 0;
+                        const inToday = Number(op.today_inward) || 0;
+                        const outToday = Number(op.today_outward) || 0;
+                        const dayLabel = doTaskOverview?.today || doTaskDate || 'selected day';
+                        const tone =
+                          overdue > 0
+                            ? 'bad'
+                            : mornPend > 0 || evePend > 0
+                              ? 'warn'
+                              : mornExp + eveExp > 0
+                                ? 'good'
+                                : 'muted';
+                        return (
+                          <tr
+                            key={`${op.id || op.email || op.name}-${idx}`}
+                            className={`sa-dash-task-row tone-${tone}`}
+                            onClick={() => openDoFromDashboard(op)}
+                            title={`${op.name || op.full_name || 'DO'} · Inward ${inToday} · Outward ${outToday} on ${dayLabel}`}
+                          >
+                            <td className="sa-dash-task-td-status">
+                              <span className="sa-dash-task-dot" />
+                            </td>
+                            <td className="sa-dash-task-td-name">
+                              <strong>{op.name || op.full_name || 'DO'}</strong>
+                            </td>
+                            <td className="sa-dash-task-td-wh">{op.warehouse_name || '—'}</td>
+                            <td
+                              className={`sa-dash-task-td-shift${mornPend > 0 ? ' pending' : mornExp > 0 ? ' done' : ''}`}
+                            >
+                              <span className="sa-dash-task-shift-top">
+                                <b>{mornDone}</b>
+                                <i>/{mornExp}</i>
+                              </span>
+                              <span className="sa-dash-task-bar" aria-hidden>
+                                <span style={{ width: `${mornPct}%` }} />
+                              </span>
+                            </td>
+                            <td
+                              className={`sa-dash-task-td-shift${evePend > 0 ? ' pending' : eveExp > 0 ? ' done' : ''}`}
+                            >
+                              <span className="sa-dash-task-shift-top">
+                                <b>{eveDone}</b>
+                                <i>/{eveExp}</i>
+                              </span>
+                              <span className="sa-dash-task-bar" aria-hidden>
+                                <span style={{ width: `${evePct}%` }} />
+                              </span>
+                            </td>
+                            <td className={`sa-dash-task-td-overdue${overdue > 0 ? ' hot' : ''}`}>{overdue}</td>
+                            <td className="sa-dash-task-td-io inward" title={`Inward on ${dayLabel}`}>
+                              <b>{inToday}</b>
+                            </td>
+                            <td className="sa-dash-task-td-io outward" title={`Outward on ${dayLabel}`}>
+                              <b>{outToday}</b>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>
@@ -6520,73 +6808,6 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               </div>
             </section>
             ) : null}
-
-            <section className="sa-op-card">
-              <div className="sa-op-dir-toolbar">
-                <div>
-                  <h2 className="sa-op-title">Operational Shortcuts</h2>
-                  <p className="sa-op-sub">Jump to common Super Admin actions</p>
-                </div>
-              </div>
-              <div className="sa-dash-shortcuts">
-                <button
-                  type="button"
-                  className="sa-dash-shortcut"
-                  onClick={() => setActiveMenu('data_operators')}
-                >
-                  <UserPlus size={14} />
-                  <span>Register Operator</span>
-                </button>
-                <button
-                  type="button"
-                  className={`sa-dash-shortcut${hasPendingRequests ? ' alert' : ''}`}
-                  onClick={() => {
-                    setActiveMenu('activity_logs');
-                    setAuditSubTab('permission_log');
-                  }}
-                >
-                  <Lock size={14} />
-                  <span>Permission Requests</span>
-                  {hasPendingRequests ? <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} /> : null}
-                </button>
-                <button
-                  type="button"
-                  className={`sa-dash-shortcut${hasNewDOChanges ? ' alert' : ''}`}
-                  onClick={() => {
-                    setActiveMenu('activity_logs');
-                    setAuditSubTab('do_changes');
-                  }}
-                >
-                  <Activity size={14} />
-                  <span>DO Operations Log</span>
-                  {hasNewDOChanges ? <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} /> : null}
-                </button>
-                <button
-                  type="button"
-                  className="sa-dash-shortcut"
-                  onClick={() => setActiveMenu('history_logs')}
-                >
-                  <History size={14} />
-                  <span>System Logs</span>
-                </button>
-                <button
-                  type="button"
-                  className="sa-dash-shortcut"
-                  onClick={() => setActiveMenu('profile_lookup')}
-                >
-                  <Search size={14} />
-                  <span>Profile Lookup</span>
-                </button>
-                <button
-                  type="button"
-                  className="sa-dash-shortcut"
-                  onClick={() => setActiveMenu('customer_reports')}
-                >
-                  <MessageSquareWarning size={14} />
-                  <span>Customer Reports</span>
-                </button>
-              </div>
-            </section>
           </div>
         )}
 
@@ -7787,6 +8008,18 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             const latestTemp = latestTempRaw != null && latestTempRaw !== '' && Number.isFinite(Number(latestTempRaw))
                               ? Number(latestTempRaw)
                               : null;
+                            const boxChamberType =
+                              pickComplianceZone(row.chamber_type || row.latest_chamber_type) ||
+                              String(row.chamber_type || row.latest_chamber_type || 'Frozen').trim() ||
+                              'Frozen';
+                            const boxTempDev = getChamberTempDeviation(latestTemp, boxChamberType);
+                            const boxTempOor = boxTempDev != null;
+                            const boxTypeLabel =
+                              boxTempDev === 'low'
+                                ? `< ${boxChamberType}`
+                                : boxTempDev === 'high'
+                                  ? `> ${boxChamberType}`
+                                  : boxChamberType;
                             const slotLabel = resolveShiftLabel(row.latest_shift || row.latest_slot, null, null);
                             const isMorningSlot = slotLabel === 'Morning';
 
@@ -7802,10 +8035,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   {latestQty.toLocaleString()}
                                 </td>
                                 <td className="sa-box-td-center" style={{
-                                  fontWeight: 500,
-                                  color: latestTemp == null ? '#5f6368' : latestTemp <= -18 ? '#137333' : '#c5221f'
+                                  fontWeight: 700,
+                                  color: latestTemp == null ? '#5f6368' : boxTempOor ? '#c5221f' : '#137333'
                                 }}>
-                                  {latestTemp == null ? '—' : `${latestTemp}°C`}
+                                  <div>{latestTemp == null ? '—' : `${latestTemp}°C`}</div>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, marginTop: 2 }}>
+                                    {boxTypeLabel}
+                                  </div>
                                 </td>
                                 <td className="sa-box-td-center">
                                   <span className={`sa-box-slot ${isMorningSlot ? 'morning' : 'evening'}`}>
@@ -8117,6 +8353,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               <th>Shift</th>
                               <th>Inspection Time</th>
                               <th>Temp (°C)</th>
+                              <th>Chamber Type</th>
                               <th>Supervisor</th>
                               <th style={{ textAlign: 'center' }}>Actions</th>
                             </tr>
@@ -8159,6 +8396,16 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <tbody>
                     {historyTab === 'daily' && getFilteredHistoryLogs().map((log) => {
                        if (!log) return null;
+                       const rowTemp = log.chamber_temp ?? log.box_temp;
+                       const rowType =
+                         pickComplianceZone(log.chamber_type) ||
+                         String(log.chamber_type || '').trim() ||
+                         'Frozen';
+                       const rowDev = getChamberTempDeviation(rowTemp, rowType);
+                       const rowOor = rowDev != null;
+                       const rowTypeLabel =
+                         rowDev === 'low' ? `< ${rowType}` : rowDev === 'high' ? `> ${rowType}` : rowType;
+                       const tempText = formatTempDisplay(rowTemp) || (rowTemp != null ? `${rowTemp}°C` : '—');
                        return (
                       <tr key={log.id}>
                         <td style={{ padding: '12px 16px', fontWeight: '600' }}>
@@ -8224,11 +8471,20 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <td style={{ padding: '12px 16px' }}>{log.inspection_time}</td>
                         <td style={{ padding: '12px 16px' }}>
                           <span className="status-badge" style={{ 
-                            backgroundColor: log.chamber_temp <= -18 ? '#dcfce7' : '#fee2e2', 
-                            color: log.chamber_temp <= -18 ? '#15803d' : '#b91c1c', 
+                            backgroundColor: rowTemp == null ? '#f1f5f9' : rowOor ? '#fee2e2' : '#dcfce7', 
+                            color: rowTemp == null ? '#64748b' : rowOor ? '#b91c1c' : '#15803d', 
                             fontWeight: 800 
                           }}>
-                            {log.chamber_temp}°C
+                            {tempText}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            fontWeight: 800,
+                            fontSize: '0.78rem',
+                            color: rowOor ? '#b91c1c' : '#475569'
+                          }}>
+                            {rowTypeLabel}
                           </span>
                         </td>
                         <td style={{ padding: '12px 16px' }}>{log.monitor_supervisor_name}</td>
@@ -8579,6 +8835,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               <span className="profile-label">Seal Number</span>
                               <span className="profile-value">{searchedRecord.inward_seal_no || '-'}</span>
                             </div>
+                            <div className="profile-item">
+                              <span className="profile-label">Invoice No.</span>
+                              <span className="profile-value">{searchedRecord.inward_invoice_no || '-'}</span>
+                            </div>
+                            <div className="profile-item">
+                              <span className="profile-label">Mens Power</span>
+                              <span className="profile-value">{searchedRecord.inward_mens_power ?? '-'}</span>
+                            </div>
                           </div>
                         </div>
 
@@ -8697,6 +8961,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             <div className="profile-item">
                               <span className="profile-label">Seal Number</span>
                               <span className="profile-value">{searchedRecord.outward_seal_no || '-'}</span>
+                            </div>
+                            <div className="profile-item">
+                              <span className="profile-label">Invoice No.</span>
+                              <span className="profile-value">{searchedRecord.outward_invoice_no || '-'}</span>
+                            </div>
+                            <div className="profile-item">
+                              <span className="profile-label">Mens Power</span>
+                              <span className="profile-value">{searchedRecord.outward_mens_power ?? '-'}</span>
                             </div>
                           </div>
                         </div>
@@ -10415,7 +10687,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           disabled={subAdminSelectedWarehouses.length === 0}
                           onChange={(e) => {
                             const val = e.target.value;
-                            if (val && !subAdminSelectedClients.includes(val)) {
+                            if (!val) return;
+                            if (val === '__ALL__') {
+                              setSubAdminSelectedClients([]);
+                              return;
+                            }
+                            if (!subAdminSelectedClients.includes(val)) {
                               setSubAdminSelectedClients((prev) => [...prev, val]);
                             }
                           }}
@@ -10427,6 +10704,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 ? 'No clients found for selected warehouse(s)'
                                 : `Select client (${subAdminClientOptions.length} for selected warehouse(s))…`}
                           </option>
+                          {subAdminSelectedWarehouses.length > 0 ? (
+                            <option value="__ALL__">
+                              All — all products in selected warehouse(s)
+                            </option>
+                          ) : null}
                           {subAdminClientOptions
                             .filter((c) => !subAdminSelectedClients.includes(c.value))
                             .map((client) => (
@@ -10439,7 +10721,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           {subAdminSelectedWarehouses.length === 0 ? (
                             <em>Pick warehouses above — clients will list for those warehouses only</em>
                           ) : subAdminSelectedClients.length === 0 ? (
-                            <em>No clients selected — all clients in selected warehouse(s)</em>
+                            <span className="sa-op-chip" title="Full access to all products in selected warehouse(s)">
+                              All products
+                            </span>
                           ) : (
                             subAdminSelectedClients.map((client, idx) => (
                               <span key={idx} className="sa-op-chip">
@@ -10520,55 +10804,88 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           </div>
                         ) : (
                           <div className="sa-op-inbox">
-                            {filteredSubAdminsList.map((sa) => {
-                              const initials = String(sa.full_name || sa.email || 'CU')
-                                .split(/\s+/)
-                                .filter(Boolean)
-                                .slice(0, 2)
-                                .map((p) => p[0]?.toUpperCase())
-                                .join('') || 'CU';
-                              const warehouses = sa.allowed_warehouses
-                                ? sa.allowed_warehouses.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
-                                : 'All warehouses';
-                              const clients = sa.allowed_clients
-                                ? sa.allowed_clients.split(',').map((c) => c.trim()).filter(Boolean).join(', ')
-                                : 'All clients';
-                              return (
-                                <div key={sa.id} className="sa-op-inbox-row">
-                                  <button
-                                    type="button"
-                                    className="sa-op-inbox-main"
-                                    onClick={() => startEditSubAdmin(sa)}
-                                    title="Edit Customer Profile"
-                                  >
-                                    <span className="sa-op-avatar">{initials}</span>
-                                    <span className="sa-op-sender">
-                                      <strong>{sa.full_name || 'Unnamed customer'}</strong>
-                                      <em>Customer</em>
-                                    </span>
-                                    <span className="sa-op-snippet">
-                                      {sa.email}
-                                      {sa.phone_no ? ` · ${formatIndiaPhoneDisplay(sa.phone_no)}` : ''}
-                                      {' · '}
-                                      {warehouses}
-                                      {' · '}
-                                      {clients}
-                                    </span>
-                                    <span className="sa-op-date">
-                                      {sa.created_at ? new Date(sa.created_at).toLocaleDateString('en-GB') : '—'}
-                                    </span>
-                                  </button>
-                                  <div className="sa-op-row-actions">
-                                    <button type="button" className="sa-op-icon-btn" onClick={() => startEditSubAdmin(sa)} title="Edit">
-                                      <Edit size={14} />
-                                    </button>
-                                    <button type="button" className="sa-op-icon-btn danger" onClick={() => handleDeleteSubAdmin(sa)} title="Revoke">
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                            <table className="sa-op-dir-table sa-op-dir-table-customers">
+                              <thead>
+                                <tr>
+                                  <th>Customer</th>
+                                  <th>Email</th>
+                                  <th>Warehouses</th>
+                                  <th>Clients</th>
+                                  <th>Phone</th>
+                                  <th>Registered</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredSubAdminsList.map((sa) => {
+                                  const initials = String(sa.full_name || sa.email || 'CU')
+                                    .split(/\s+/)
+                                    .filter(Boolean)
+                                    .slice(0, 2)
+                                    .map((p) => p[0]?.toUpperCase())
+                                    .join('') || 'CU';
+                                  const warehouseList = sa.allowed_warehouses
+                                    ? sa.allowed_warehouses.split(',').map((w) => w.trim()).filter(Boolean)
+                                    : [];
+                                  const clientList = sa.allowed_clients
+                                    ? sa.allowed_clients.split(',').map((c) => c.trim()).filter(Boolean)
+                                    : [];
+                                  const warehouseLabel = warehouseList.length
+                                    ? warehouseList
+                                        .map((w) => lookupMasterLabel(w, accessScopeOptions.warehouseMasters) || w)
+                                        .join(', ')
+                                    : 'All warehouses';
+                                  const clientLabel = clientList.length
+                                    ? clientList
+                                        .map((c) => lookupMasterLabel(c, accessScopeOptions.clientMasters) || c)
+                                        .join(', ')
+                                    : 'All products (warehouse)';
+                                  return (
+                                    <tr key={sa.id} className="sa-op-dir-row">
+                                      <td className="sa-op-dir-td-operator">
+                                        <button
+                                          type="button"
+                                          className="sa-op-dir-operator-btn"
+                                          onClick={() => startEditSubAdmin(sa)}
+                                          title="Edit Customer Profile"
+                                        >
+                                          <span className="sa-op-avatar">{initials}</span>
+                                          <span className="sa-op-sender">
+                                            <strong>{sa.full_name || 'Unnamed customer'}</strong>
+                                            <em>#{sa.id}</em>
+                                          </span>
+                                        </button>
+                                      </td>
+                                      <td className="sa-op-dir-td-email" title={sa.email || ''}>
+                                        {sa.email || '—'}
+                                      </td>
+                                      <td className="sa-op-dir-td-wh" title={warehouseLabel}>
+                                        {warehouseLabel}
+                                      </td>
+                                      <td className="sa-op-dir-td-clients" title={clientLabel}>
+                                        {clientLabel}
+                                      </td>
+                                      <td className="sa-op-dir-td-phone">
+                                        {sa.phone_no ? formatIndiaPhoneDisplay(sa.phone_no) : '—'}
+                                      </td>
+                                      <td className="sa-op-dir-td-date">
+                                        {sa.created_at ? new Date(sa.created_at).toLocaleDateString('en-GB') : '—'}
+                                      </td>
+                                      <td className="sa-op-dir-td-actions">
+                                        <div className="sa-op-row-actions">
+                                          <button type="button" className="sa-op-icon-btn" onClick={() => startEditSubAdmin(sa)} title="Edit">
+                                            <Edit size={14} />
+                                          </button>
+                                          <button type="button" className="sa-op-icon-btn danger" onClick={() => handleDeleteSubAdmin(sa)} title="Revoke">
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         )}
                       </>
@@ -10597,7 +10914,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   { label: 'Phone No.', value: formatIndiaPhoneDisplay(op.phone_no) },
                   { label: 'Email Address', value: op.email || '—' },
                   { label: 'Warehouse / Data Access', value: op.warehouse_name || 'Not Configured' },
-                  { label: 'Chamber Limit', value: `Chambers 1 to ${op.chamber_limit || 4}` },
+                  { label: 'Chamber Limit', value: String(op.chamber_limit || 4) },
                   { label: 'Registration Date', value: op.created_at ? new Date(op.created_at).toLocaleDateString('en-GB') : '—' }
                 ];
                 const inTotal = Number(op.total_inward) || 0;
@@ -10738,8 +11055,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             {' · '}
                             {opTaskAppliedFrom && opTaskAppliedTo
                               ? (opTaskAppliedFrom === opTaskAppliedTo
-                                ? opTaskAppliedFrom
-                                : `${opTaskAppliedFrom} to ${opTaskAppliedTo}`)
+                                ? formatDateStr(opTaskAppliedFrom)
+                                : `${formatDateStr(opTaskAppliedFrom)} to ${formatDateStr(opTaskAppliedTo)}`)
                               : 'select dates'}
                             {' · '}
                             {opTaskStatus.assignmentCount} active client{opTaskStatus.assignmentCount === 1 ? '' : 's'}
@@ -10880,7 +11197,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 key={item.id}
                                 type="button"
                                 className={`do-gmail-chip${opTaskFilter === item.id ? ' active' : ''}`}
-                                onClick={() => setOpTaskFilter(item.id)}
+                                onClick={() => {
+                                  setOpTaskFilter(item.id);
+                                  setOpTaskListPage(1);
+                                }}
                               >
                                 {item.label} ({item.count})
                               </button>
@@ -10899,7 +11219,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                     <span className="do-gmail-task-chamber-filter-label">Chamber</span>
                                     <select
                                       value={opTaskChamberFilter}
-                                      onChange={(e) => setOpTaskChamberFilter(e.target.value)}
+                                      onChange={(e) => {
+                                        setOpTaskChamberFilter(e.target.value);
+                                        setOpTaskListPage(1);
+                                      }}
                                       title="Filter by chamber"
                                       aria-label="Filter by chamber"
                                     >
@@ -10916,9 +11239,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 <span style={{ textAlign: 'right' }}>View</span>
                               </div>
                               <div className="do-gmail-task-list">
-                                {filteredOpTasks.slice(0, 120).map((task) => (
+                                {filteredOpTasks
+                                  .slice((Math.max(1, opTaskListPage) - 1) * 15, Math.max(1, opTaskListPage) * 15)
+                                  .map((task) => (
                                   <div key={`${task.date}-${task.shift}-${task.chamber_name}-${task.client_name}`} className="do-gmail-inbox-row do-gmail-task-row">
-                                    <span className="do-gmail-date">{task.date}</span>
+                                    <span className="do-gmail-date">{formatDateStr(task.date)}</span>
                                     <span className="do-gmail-snippet">{task.shift}</span>
                                     <span className="do-gmail-snippet">
                                       {task.chamber_name}
@@ -10947,11 +11272,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   </div>
                                 ))}
                               </div>
-                              {filteredOpTasks.length > 120 && (
-                                <div className="do-gmail-empty">
-                                  Showing first 120 of {filteredOpTasks.length} tasks — narrow the filters to see more.
-                                </div>
-                              )}
+                              <PaginationBar
+                                page={opTaskListPage}
+                                totalItems={filteredOpTasks.length}
+                                pageSize={15}
+                                onPageChange={setOpTaskListPage}
+                                itemLabel="tasks"
+                              />
                             </>
                           )}
                         </>
@@ -11737,31 +12064,62 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
                       <label className="sa-op-field">
                         <span>Warehouse / Data Access</span>
-                        <input
-                          type="text"
-                          name="op-warehouse"
-                          list="do-warehouse-datalist"
-                          placeholder={
-                            warehouseSelectOptions.length === 0
-                              ? 'Type warehouse name (e.g. Mumbai Cold Store)'
-                              : 'Type or pick warehouse from list'
-                          }
-                          value={opWarehouseName}
-                          onChange={(e) => setOpWarehouseName(e.target.value)}
-                          required
-                          autoComplete="off"
-                        />
-                        <datalist id="do-warehouse-datalist">
-                          {warehouseSelectOptions.map((wh) => (
-                            <option key={wh.value} value={wh.value}>{wh.label}</option>
-                          ))}
-                        </datalist>
+                        <div className="sa-op-suggest">
+                          <input
+                            name="op-warehouse"
+                            type="text"
+                            autoComplete="off"
+                            placeholder={
+                              warehouseSelectOptions.length === 0
+                                ? 'No warehouses in Master — add one first'
+                                : 'Type warehouse name…'
+                            }
+                            value={opWarehouseName}
+                            onChange={(e) => {
+                              setOpWarehouseName(e.target.value);
+                              setOpWarehouseSuggestOpen(true);
+                            }}
+                            onFocus={() => setOpWarehouseSuggestOpen(true)}
+                            onBlur={() => {
+                              window.setTimeout(() => setOpWarehouseSuggestOpen(false), 180);
+                            }}
+                            required
+                            disabled={warehouseSelectOptions.length === 0}
+                          />
+                          {opWarehouseSuggestOpen &&
+                            warehouseSelectOptions.length > 0 &&
+                            warehouseTypeSuggestions.length > 0 && (
+                              <ul className="sa-op-suggest-list" role="listbox">
+                                {warehouseTypeSuggestions.map((wh) => (
+                                  <li key={wh.value}>
+                                    <button
+                                      type="button"
+                                      className={
+                                        String(opWarehouseName).trim().toLowerCase() ===
+                                        String(wh.value).trim().toLowerCase()
+                                          ? 'is-active'
+                                          : undefined
+                                      }
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => {
+                                        setOpWarehouseName(wh.value);
+                                        setOpWarehouseSuggestOpen(false);
+                                      }}
+                                    >
+                                      <strong>{wh.value}</strong>
+                                      {wh.code ? <span>{wh.code}</span> : null}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                        </div>
                         <em>
                           {warehouseSelectOptions.length === 0
-                            ? 'No Master Data warehouses yet — type the warehouse name here, or add warehouses under Master Data first.'
+                            ? 'Go to Master Data → Warehouses, add the new place, then come back here.'
                             : editingOp
-                              ? 'Updates profile + past logs for this operator. New tasks also use this warehouse.'
-                              : 'Pick from the list or type a warehouse name. Add new warehouses in Master Data to manage codes.'}
+                              ? 'Type to filter Master warehouses, then pick one. Updates profile + past logs.'
+                              : 'Type to see suggestions from Master warehouses, then pick one.'}
                         </em>
                       </label>
 
@@ -11873,59 +12231,76 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           </div>
                         ) : (
                           <div className="sa-op-inbox">
-                            <div className="sa-op-inbox-head">
-                              <span>Operator</span>
-                              <span>Details</span>
-                              <span>Registered</span>
-                              <span>Actions</span>
-                            </div>
-                            {filteredOperators.map((op) => {
-                              if (!op) return null;
-                              const initials = String(op.full_name || op.email || 'DO')
-                                .split(/\s+/)
-                                .filter(Boolean)
-                                .slice(0, 2)
-                                .map((p) => p[0]?.toUpperCase())
-                                .join('') || 'DO';
-                              return (
-                                <div key={op.id} className="sa-op-inbox-row">
-                                  <button
-                                    type="button"
-                                    className="sa-op-inbox-main"
-                                    onClick={() => openOperatorProfile(op)}
-                                    title="View DO Profile"
-                                  >
-                                    <span className="sa-op-avatar">{initials}</span>
-                                    <span className="sa-op-sender">
-                                      <strong>{op.full_name || 'Unnamed operator'}</strong>
-                                      <em>#{op.id}</em>
-                                    </span>
-                                    <span className="sa-op-snippet">
-                                      {op.email}
-                                      {' · '}
-                                      {op.warehouse_name || 'Warehouse not configured'}
-                                      {' · '}
-                                      Chambers 1–{op.chamber_limit || 4}
-                                      {op.phone_no ? ` · ${formatIndiaPhoneDisplay(op.phone_no)}` : ''}
-                                    </span>
-                                    <span className="sa-op-date">
-                                      {op.created_at ? new Date(op.created_at).toLocaleDateString('en-GB') : '—'}
-                                    </span>
-                                  </button>
-                                  <div className="sa-op-row-actions">
-                                    <button type="button" className="sa-op-icon-btn" onClick={() => openOperatorProfile(op)} title="View">
-                                      <Eye size={14} />
-                                    </button>
-                                    <button type="button" className="sa-op-icon-btn" onClick={() => startEditOperator(op)} title="Edit">
-                                      <Edit size={14} />
-                                    </button>
-                                    <button type="button" className="sa-op-icon-btn danger" onClick={() => handleDeleteOperator(op)} title="Revoke">
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                            <table className="sa-op-dir-table">
+                              <thead>
+                                <tr>
+                                  <th>Operator</th>
+                                  <th>Email</th>
+                                  <th>Warehouse</th>
+                                  <th>Phone</th>
+                                  <th>Chamber Limit</th>
+                                  <th>Registered</th>
+                                  <th>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredOperators.map((op) => {
+                                  if (!op) return null;
+                                  const initials = String(op.full_name || op.email || 'DO')
+                                    .split(/\s+/)
+                                    .filter(Boolean)
+                                    .slice(0, 2)
+                                    .map((p) => p[0]?.toUpperCase())
+                                    .join('') || 'DO';
+                                  return (
+                                    <tr key={op.id} className="sa-op-dir-row">
+                                      <td className="sa-op-dir-td-operator">
+                                        <button
+                                          type="button"
+                                          className="sa-op-dir-operator-btn"
+                                          onClick={() => openOperatorProfile(op)}
+                                          title="View DO Profile"
+                                        >
+                                          <span className="sa-op-avatar">{initials}</span>
+                                          <span className="sa-op-sender">
+                                            <strong>{op.full_name || 'Unnamed operator'}</strong>
+                                            <em>#{op.id}</em>
+                                          </span>
+                                        </button>
+                                      </td>
+                                      <td className="sa-op-dir-td-email" title={op.email || ''}>
+                                        {op.email || '—'}
+                                      </td>
+                                      <td className="sa-op-dir-td-wh" title={op.warehouse_name || ''}>
+                                        {op.warehouse_name || 'Not configured'}
+                                      </td>
+                                      <td className="sa-op-dir-td-phone">
+                                        {op.phone_no ? formatIndiaPhoneDisplay(op.phone_no) : '—'}
+                                      </td>
+                                      <td className="sa-op-dir-td-limit">
+                                        {op.chamber_limit || 4}
+                                      </td>
+                                      <td className="sa-op-dir-td-date">
+                                        {op.created_at ? new Date(op.created_at).toLocaleDateString('en-GB') : '—'}
+                                      </td>
+                                      <td className="sa-op-dir-td-actions">
+                                        <div className="sa-op-row-actions">
+                                          <button type="button" className="sa-op-icon-btn" onClick={() => openOperatorProfile(op)} title="View">
+                                            <Eye size={14} />
+                                          </button>
+                                          <button type="button" className="sa-op-icon-btn" onClick={() => startEditOperator(op)} title="Edit">
+                                            <Edit size={14} />
+                                          </button>
+                                          <button type="button" className="sa-op-icon-btn danger" onClick={() => handleDeleteOperator(op)} title="Revoke">
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         )}
                       </>
@@ -12551,6 +12926,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <span className="profile-label">Seal Number</span>
                           <span className="profile-value">{selectedDetailLog.inward_seal_no || '-'}</span>
                         </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Invoice No.</span>
+                          <span className="profile-value">{selectedDetailLog.inward_invoice_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Mens Power</span>
+                          <span className="profile-value">{selectedDetailLog.inward_mens_power ?? '-'}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -12654,6 +13037,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <div className="profile-item">
                           <span className="profile-label">Seal Number</span>
                           <span className="profile-value">{selectedDetailLog.outward_seal_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Invoice No.</span>
+                          <span className="profile-value">{selectedDetailLog.outward_invoice_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Mens Power</span>
+                          <span className="profile-value">{selectedDetailLog.outward_mens_power ?? '-'}</span>
                         </div>
                       </div>
                     </div>

@@ -568,6 +568,14 @@ export default function DOProfileLookup({ setActiveDOMenu, setEditInwardData, se
                           <span className="profile-label">Seal Number</span>
                           <span className="profile-value">{searchedRecord.inward_seal_no || '-'}</span>
                         </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Invoice No.</span>
+                          <span className="profile-value">{searchedRecord.inward_invoice_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Mens Power</span>
+                          <span className="profile-value">{searchedRecord.inward_mens_power ?? '-'}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -698,6 +706,14 @@ export default function DOProfileLookup({ setActiveDOMenu, setEditInwardData, se
                         <div className="profile-item">
                           <span className="profile-label">Seal Number</span>
                           <span className="profile-value">{searchedRecord.outward_seal_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Invoice No.</span>
+                          <span className="profile-value">{searchedRecord.outward_invoice_no || '-'}</span>
+                        </div>
+                        <div className="profile-item">
+                          <span className="profile-label">Mens Power</span>
+                          <span className="profile-value">{searchedRecord.outward_mens_power ?? '-'}</span>
                         </div>
                       </div>
                     </div>
