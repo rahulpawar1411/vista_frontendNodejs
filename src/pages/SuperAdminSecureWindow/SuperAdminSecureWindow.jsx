@@ -30,7 +30,7 @@ import {
   fetchCustomerReports, updateCustomerReportStatus, deleteCustomerReport,
   fetchCustomerNoteThreads, fetchCustomerNotes, postCustomerNote, deleteCustomerNote,
   fetchDailyInspections, deleteDailyInspection,
-  fetchInventoryReconciliation, fetchInventoryFilterOptions, fetchDailyInventoryDeltas,
+  fetchInventoryReconciliation, fetchInventoryFilterOptions,
   fetchClientMonthBoxSheet,
   fetchAppSubAdmins, createAppSubAdmin, deleteAppSubAdmin,
   fetchChamberAssignments, addChamberAssignment, deleteChamberAssignment,
@@ -762,11 +762,69 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [recordAllowHistory, setRecordAllowHistory] = useState([]);
   const [loadingAllowHistory, setLoadingAllowHistory] = useState(false);
   const [lightboxImg, setLightboxImg] = useState(null);
-  const [lightboxZoomed, setLightboxZoomed] = useState(false);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
+  const [lightboxPanning, setLightboxPanning] = useState(false);
+  const lightboxBodyRef = useRef(null);
+  const lightboxDragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
 
   useEffect(() => {
-    setLightboxZoomed(false);
+    setLightboxZoom(1);
+    setLightboxPanning(false);
   }, [lightboxImg]);
+
+  useEffect(() => {
+    const el = lightboxBodyRef.current;
+    if (!el || !lightboxImg) return undefined;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY > 0 ? -0.12 : 0.12;
+      setLightboxZoom((z) => Math.min(5, Math.max(1, Number((z + delta).toFixed(2)))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [lightboxImg]);
+
+  const onLightboxPointerDown = (e) => {
+    if (lightboxZoom <= 1) return;
+    const el = lightboxBodyRef.current;
+    if (!el) return;
+    e.preventDefault();
+    lightboxDragRef.current = {
+      active: true,
+      x: e.clientX,
+      y: e.clientY,
+      left: el.scrollLeft,
+      top: el.scrollTop
+    };
+    setLightboxPanning(true);
+    try {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  const onLightboxPointerMove = (e) => {
+    const drag = lightboxDragRef.current;
+    if (!drag.active) return;
+    const el = lightboxBodyRef.current;
+    if (!el) return;
+    el.scrollLeft = drag.left - (e.clientX - drag.x);
+    el.scrollTop = drag.top - (e.clientY - drag.y);
+  };
+
+  const onLightboxPointerUp = (e) => {
+    if (!lightboxDragRef.current.active) return;
+    lightboxDragRef.current.active = false;
+    setLightboxPanning(false);
+    try {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  };
   /** Super Admin direct edit (no permission): { type: 'daily'|'inward'|'outward', data } */
   const [saEditLog, setSaEditLog] = useState(null);
   const [saLogActionBusy, setSaLogActionBusy] = useState(false);
@@ -1306,6 +1364,34 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [monthSheetToDate, setMonthSheetToDate] = useState('');
   const [monthSheetPage, setMonthSheetPage] = useState(1);
   const [monthSheetPerPage] = useState(15);
+  const boxDayHistoryRef = useRef(false);
+  const deltasViewClientRef = useRef(null);
+  deltasViewClientRef.current = deltasViewClient;
+
+  const resetClientMonthSheetState = () => {
+    setDeltasViewClient(null);
+    setClientMonthSheet(null);
+    setMonthSheetError('');
+    setLoadingMonthSheet(false);
+    setMonthSheetFromDate('');
+    setMonthSheetToDate('');
+    setMonthSheetPage(1);
+  };
+
+  const closeClientMonthSheet = (opts = {}) => {
+    const fromPopstate = !!opts?.fromPopstate;
+    // Prefer history.back() so mouse Back and UI Back share one path
+    if (!fromPopstate && boxDayHistoryRef.current) {
+      try {
+        window.history.back();
+        return;
+      } catch (_) {
+        /* fall through and reset locally */
+      }
+    }
+    boxDayHistoryRef.current = false;
+    resetClientMonthSheetState();
+  };
 
   const openClientMonthSheet = async (row, rangeOverride) => {
     if (!row?.client_name) return;
@@ -1323,11 +1409,32 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setClientMonthSheet(null);
     setMonthSheetError('');
     setLoadingMonthSheet(true);
+
+    // Enable browser / mouse Back to return to lot list
+    if (!boxDayHistoryRef.current) {
+      try {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('saBoxDay', '1');
+        window.history.pushState(
+          { saBoxDayDetail: true, client: row.client_name },
+          '',
+          nextUrl.toString()
+        );
+        boxDayHistoryRef.current = true;
+      } catch (_) {
+        try {
+          window.history.pushState({ saBoxDayDetail: true }, '');
+          boxDayHistoryRef.current = true;
+        } catch (__) {
+          boxDayHistoryRef.current = false;
+        }
+      }
+    }
+
     try {
       const data = await fetchClientMonthBoxSheet({
         client: row.client_name,
         warehouse: row.warehouse_name || undefined,
-        chamber: row.chamber_name && row.chamber_name !== '-' ? row.chamber_name : undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined
       });
@@ -1340,25 +1447,44 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   };
 
-  const closeClientMonthSheet = () => {
-    setDeltasViewClient(null);
-    setClientMonthSheet(null);
-    setMonthSheetError('');
-    setLoadingMonthSheet(false);
-    setMonthSheetFromDate('');
-    setMonthSheetToDate('');
-    setMonthSheetPage(1);
-  };
+  useEffect(() => {
+    const onPopState = () => {
+      if (!boxDayHistoryRef.current && !deltasViewClientRef.current) return;
+      boxDayHistoryRef.current = false;
+      resetClientMonthSheetState();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (activeMenu === 'daily_box_tracker') return;
+    if (!boxDayHistoryRef.current && !deltasViewClientRef.current) return;
+    // Leaving Daily Box Tracker: drop detail without history.back()
+    boxDayHistoryRef.current = false;
+    resetClientMonthSheetState();
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has('saBoxDay')) {
+        u.searchParams.delete('saBoxDay');
+        window.history.replaceState(window.history.state, '', u.toString());
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }, [activeMenu]);
 
   const loadDailyBoxTrackerData = async (warehouseOverride) => {
     const warehouse = warehouseOverride !== undefined ? warehouseOverride : deltasWarehouseFilter;
     setLoadingDeltas(true);
     setDeltasError('');
     try {
-      const [filterData, deltaRows] = await Promise.all([
+      const [filterData, reconRows] = await Promise.all([
         fetchInventoryFilterOptions(),
-        fetchDailyInventoryDeltas({
-          warehouse: warehouse && warehouse !== 'All' ? warehouse : undefined
+        fetchInventoryReconciliation({
+          warehouse: warehouse && warehouse !== 'All' ? warehouse : undefined,
+          offset: 0,
+          limit: 200
         })
       ]);
       setInventoryFilterOptions({
@@ -1366,7 +1492,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         total_warehouses: Number(filterData?.total_warehouses) || 0,
         total_clients: Number(filterData?.total_clients) || 0
       });
-      setDailyDeltas(Array.isArray(deltaRows) ? deltaRows : []);
+      setDailyDeltas(Array.isArray(reconRows) ? reconRows : []);
       setDeltasCurrentPage(1);
     } catch (err) {
       console.error('Failed to load Daily Box Tracker data:', err);
@@ -5281,7 +5407,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       (activeMenu === 'data_operators' && !!viewingOperator && (opMappingsLoading || opTaskLogsLoading)) ||
       (activeMenu === 'customers' && loadingSubAdmins) ||
       (activeMenu === 'customer_reports' && loadingCustomerReports) ||
-      (activeMenu === 'daily_box_tracker' && (loadingInventory || loadingDeltas || loadingMonthSheet)) ||
+      (activeMenu === 'daily_box_tracker' && (loadingDeltas || loadingMonthSheet)) ||
       (activeMenu === 'dashboard' && loadingPermRequests));
 
   return (
@@ -7298,7 +7424,17 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             ? Array.from(new Set(liveWarehouses.flatMap((w) => w.clients || []))).sort((a, b) => a.localeCompare(b))
             : (selectedWh?.clients || []);
 
-          const filteredRows = (dailyDeltas || [])
+          /** Left now = Phys prefer else Book Bal (same as mobile Reports) */
+          const leftNowOf = (row) => {
+            if (row == null) return 0;
+            if (row.physical_audit_count != null && row.physical_audit_count !== '') {
+              return Math.max(0, Number(row.physical_audit_count) || 0);
+            }
+            return Math.max(0, Number(row.calculated_balance) || 0);
+          };
+
+          // Lot rows → one row per client (+ warehouse). In/Out are client-warehouse totals (not sum of chambers).
+          const lotRows = (dailyDeltas || [])
             .filter((row) => {
               if (!row || !row.client_name) return false;
               if (deltasWarehouseFilter !== 'All') {
@@ -7308,25 +7444,60 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               }
               if (deltasClientFilter !== 'All' && row.client_name !== deltasClientFilter) return false;
               return true;
-            })
-            .slice()
-            .sort((a, b) => {
-              // Latest update on top
-              const da = String(a.latest_date || '');
-              const db = String(b.latest_date || '');
-              if (db !== da) return db.localeCompare(da);
-              return String(a.client_name || '').localeCompare(String(b.client_name || ''));
             });
 
-          const totalBoxes = filteredRows.reduce((sum, r) => sum + (Number(r.latest_count) || 0), 0);
-          const netDelta = filteredRows.reduce((sum, r) => sum + (Number(r.delta) || 0), 0);
+          const clientMap = new Map();
+          lotRows.forEach((row) => {
+            const client = String(row.client_name || '').trim();
+            const wh = String(row.warehouse_name || '').trim();
+            const key = `${client.toLowerCase()}|||${wh.toLowerCase()}`;
+            const inward = Math.max(0, Number(row.total_inward_boxes) || 0);
+            const outward = Math.max(0, Number(row.total_outward_boxes) || 0);
+            const bal = Math.max(0, Number(row.calculated_balance) || 0);
+            const phys = Math.max(0, Number(row.physical_audit_count) || 0);
+            const audit = String(row.last_audit_date || '');
+            const prev = clientMap.get(key);
+            if (!prev) {
+              clientMap.set(key, {
+                client_name: client,
+                warehouse_name: wh || null,
+                chamber_name: null,
+                total_inward_boxes: inward,
+                total_outward_boxes: outward,
+                calculated_balance: bal,
+                physical_audit_count: phys,
+                last_audit_date: audit || null,
+                discrepancy: bal - phys
+              });
+              return;
+            }
+            // Same client+warehouse: keep In/Out/Bal once; sum physical Left across chambers
+            prev.physical_audit_count = (Number(prev.physical_audit_count) || 0) + phys;
+            if (audit && (!prev.last_audit_date || audit > String(prev.last_audit_date))) {
+              prev.last_audit_date = audit;
+            }
+            prev.total_inward_boxes = Math.max(prev.total_inward_boxes, inward);
+            prev.total_outward_boxes = Math.max(prev.total_outward_boxes, outward);
+            prev.calculated_balance = Math.max(prev.calculated_balance, bal);
+            prev.discrepancy =
+              Math.max(0, Number(prev.calculated_balance) || 0) -
+              Math.max(0, Number(prev.physical_audit_count) || 0);
+          });
+
+          const filteredRows = Array.from(clientMap.values()).sort((a, b) => {
+            const da = String(a.last_audit_date || '');
+            const db = String(b.last_audit_date || '');
+            if (db !== da) return db.localeCompare(da);
+            return String(a.client_name || '').localeCompare(String(b.client_name || ''));
+          });
+
+          const totalBoxes = filteredRows.reduce((sum, r) => sum + leftNowOf(r), 0);
           const uniqueClientsInData = new Set(filteredRows.map((r) => r.client_name)).size;
 
-          // Client-wise box totals from live filtered rows (warehouse + client filters)
           const clientBoxMap = {};
           filteredRows.forEach((r) => {
             const name = r.client_name || 'Unknown';
-            clientBoxMap[name] = (clientBoxMap[name] || 0) + (Number(r.latest_count) || 0);
+            clientBoxMap[name] = (clientBoxMap[name] || 0) + leftNowOf(r);
           });
           const PIE_COLORS = [
             '#0284c7', '#0f766e', '#7c3aed', '#ea580c', '#16a34a',
@@ -7377,14 +7548,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             const paths = slices.map((slice, idx) => {
               const portion = slice.boxes / total;
               const sweep = Math.max(portion * 360, portion > 0 ? 0.3 : 0);
-              const start = angle;
-              const end = angle + sweep;
-              angle = end;
+              const startA = angle;
+              const endA = angle + sweep;
+              angle = endA;
               const large = sweep > 180 ? 1 : 0;
-              const p1 = polar(start, radius);
-              const p2 = polar(end, radius);
-              const p3 = polar(end, innerR);
-              const p4 = polar(start, innerR);
+              const p1 = polar(startA, radius);
+              const p2 = polar(endA, radius);
+              const p3 = polar(endA, innerR);
+              const p4 = polar(startA, innerR);
               const d = [
                 `M ${p1.x} ${p1.y}`,
                 `A ${radius} ${radius} 0 ${large} 1 ${p2.x} ${p2.y}`,
@@ -7434,7 +7605,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       {loadingDeltas ? '…' : total.toLocaleString()}
                     </span>
                     <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      boxes
+                      left now
                     </span>
                     <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', marginTop: 2 }}>
                       {uniqueClientsInData} clients
@@ -7492,8 +7663,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           };
 
           const clientCountLabel = deltasWarehouseFilter === 'All'
-            ? `Showing ${filteredRows.length} lots · ${uniqueClientsInData} clients · ${totalBoxes.toLocaleString()} boxes`
-            : `${deltasWarehouseFilter}: ${filteredRows.length} lots · ${uniqueClientsInData} clients · ${totalBoxes.toLocaleString()} boxes`;
+            ? `Showing ${filteredRows.length} clients · ${totalBoxes.toLocaleString()} left`
+            : `${deltasWarehouseFilter}: ${filteredRows.length} clients · ${totalBoxes.toLocaleString()} left`;
 
           const pageStart = (deltasCurrentPage - 1) * deltasPerPage;
           const paginatedRows = filteredRows.slice(pageStart, pageStart + deltasPerPage);
@@ -7502,41 +7673,27 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             if (!dateStr) return '-';
             const parts = String(dateStr).split('-');
             if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-            return dateStr;
+            try {
+              return new Date(dateStr).toLocaleDateString('en-GB');
+            } catch (_) {
+              return String(dateStr);
+            }
           };
 
           const handleExportBoxInventoryCSV = () => {
             if (!filteredRows.length) return;
-            const headers = 'Client,Warehouse,Chamber,Previous Qty,Previous Temp,Previous Date,Latest Qty,Latest Temp,Latest Date,Plus/Minus,Status\n';
+            const headers = 'Client,Warehouse,Left Now,Last Audit\n';
             const csvContent = headers + filteredRows.map((row) => {
-              const latestQty = Math.max(0, Number(row.latest_count) || 0);
-              const prevQty = Math.max(0, Number(row.prev_count) || 0);
-              const inwardQty = Number(row.inward_qty) >= 0
-                ? Number(row.inward_qty)
-                : (latestQty > prevQty ? latestQty - prevQty : 0);
-              const outwardQty = Number(row.outward_qty) >= 0
-                ? Number(row.outward_qty)
-                : (prevQty > latestQty ? prevQty - latestQty : 0);
-              const status = inwardQty > 0 ? 'Plus' : outwardQty > 0 ? 'Minus' : 'No Change';
-              const plusMinus = inwardQty > 0 ? `+${inwardQty}` : outwardQty > 0 ? `-${outwardQty}` : '0';
-              const latestTemp = row.latest_temp != null && row.latest_temp !== '' ? `${row.latest_temp}°C` : '';
-              const prevTemp = row.prev_temp != null && row.prev_temp !== '' ? `${row.prev_temp}°C` : '';
+              const left = leftNowOf(row);
               return [
                 `"${row.client_name || '-'}"`,
                 `"${row.warehouse_name || '-'}"`,
-                `"${row.chamber_name || '-'}"`,
-                row.prev_date ? prevQty : '',
-                prevTemp,
-                `"${formatDate(row.prev_date)}"`,
-                latestQty,
-                latestTemp,
-                `"${formatDate(row.latest_date)}"`,
-                plusMinus,
-                `"${status}"`
+                left,
+                `"${formatDate(row.last_audit_date)}"`
               ].join(',');
             }).join('\n');
             const whTag = deltasWarehouseFilter === 'All' ? 'All' : String(deltasWarehouseFilter).replace(/\s+/g, '_');
-            downloadCsv(`Box_Inventory_${whTag}_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+            downloadCsv(`Box_Inventory_IO_${whTag}_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
           };
 
           return (
@@ -7544,273 +7701,187 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               {deltasViewClient ? (() => {
                 const row = deltasViewClient;
                 const meta = clientMonthSheet?.meta || {};
-                const days = Array.isArray(clientMonthSheet?.days) ? clientMonthSheet.days : [];
-                const warehouseLabel = meta.warehouse_name || row.warehouse_name || '—';
-                const chamberLabel = meta.chamber_name || row.chamber_name || '—';
-                const supervisorLabel = meta.supervisor_name
-                  ? meta.supervisor_email
-                    ? `${meta.supervisor_name} (${meta.supervisor_email})`
-                    : meta.supervisor_name
-                  : '—';
-
-                const handleExportMonthSheetCSV = () => {
-                  if (!days.length) return;
-                  const headers =
-                    'Date,Warehouse,Chamber,Warehouse Supervisor,Morning Boxes,Evening Boxes,Inward Boxes,Outward Boxes,Total Boxes\n';
-                  const csvContent = headers + days.map((d) => {
-                    const fmtQty = (v) => (v == null || v === '' ? '' : Math.max(0, Number(v) || 0));
-                    return [
-                      `"${formatDate(d.date)}"`,
-                      `"${String(warehouseLabel).replace(/"/g, '""')}"`,
-                      `"${String(chamberLabel).replace(/"/g, '""')}"`,
-                      `"${String(supervisorLabel).replace(/"/g, '""')}"`,
-                      fmtQty(d.morning_qty),
-                      fmtQty(d.evening_qty),
-                      fmtQty(d.inward_boxes),
-                      fmtQty(d.outward_boxes),
-                      fmtQty(d.total_boxes)
-                    ].join(',');
-                  }).join('\n');
-                  const safeName = String(row.client_name || 'Client').replace(/[^\w\-]+/g, '_');
-                  downloadCsv(
-                    `Box_Month_${safeName}_${meta.fromDate || 'from'}_${meta.toDate || 'to'}.csv`,
-                    csvContent
-                  );
-                };
-
-                const cellQty = (v) => {
-                  if (v == null || v === '') return '—';
-                  return Math.max(0, Number(v) || 0).toLocaleString();
-                };
-
-                const monthSheetStart = (monthSheetPage - 1) * monthSheetPerPage;
-                const paginatedDays = days.slice(
-                  monthSheetStart,
-                  monthSheetStart + monthSheetPerPage
+                const daysAsc = Array.isArray(clientMonthSheet?.days) ? clientMonthSheet.days : [];
+                const daysDesc = [...daysAsc].reverse();
+                const pageDays = daysDesc.slice(
+                  (monthSheetPage - 1) * monthSheetPerPage,
+                  monthSheetPage * monthSheetPerPage
                 );
-
+                const fmtDay = (ymd) => {
+                  if (!ymd) return '—';
+                  const p = String(ymd).split('-');
+                  if (p.length === 3) {
+                    const dt = new Date(`${ymd}T12:00:00`);
+                    const wd = Number.isNaN(dt.getTime())
+                      ? ''
+                      : dt.toLocaleDateString('en-GB', { weekday: 'short' });
+                    return wd ? `${wd} · ${p[2]}/${p[1]}/${p[0]}` : `${p[2]}/${p[1]}/${p[0]}`;
+                  }
+                  return String(ymd);
+                };
+                const cell = (n) => {
+                  const v = Number(n);
+                  if (!Number.isFinite(v)) return '0';
+                  return v.toLocaleString();
+                };
+                const openLeft = Number(meta.opening_left || 0);
+                const inTotal = Number(meta.month_inward_total || 0);
+                const outTotal = Number(meta.month_outward_total || 0);
+                const closeLeft = Number(meta.closing_total ?? openLeft);
                 return (
-                  <section className="sa-op-card sa-box-month-sheet">
-                    <div className="sa-op-dir-toolbar">
-                      <div className="sa-op-dir-tools">
+                  <section className="sa-op-card sa-box-day-detail">
+                    <div className="sa-op-dir-toolbar sa-box-day-toolbar">
+                      <div className="sa-box-day-toolbar-left">
                         <button
                           type="button"
                           className="sa-box-back-btn"
-                          onClick={closeClientMonthSheet}
+                          onClick={() => closeClientMonthSheet()}
                         >
-                          ← Back
+                          ← Back to clients
                         </button>
-                        <div>
-                          <h2 className="sa-op-title">{row.client_name}</h2>
+                        <div className="sa-box-day-heading">
+                          <h2 className="sa-op-title">{meta.client_name || row.client_name}</h2>
                           <p className="sa-op-sub">
-                            1-month daily box sheet · Morning / Evening / Inward / Outward / Total
-                            {meta.fromDate && meta.toDate
-                              ? ` · ${formatDate(meta.fromDate)} → ${formatDate(meta.toDate)}`
-                              : ''}
+                            {meta.warehouse_name || row.warehouse_name || '—'}
                           </p>
                         </div>
                       </div>
-                      <div className="sa-op-dir-tools">
+                      <div className="sa-box-day-range">
+                        <label className="sa-op-field">
+                          <span>From</span>
+                          <input
+                            type="date"
+                            className="sa-op-filter"
+                            value={monthSheetFromDate || ''}
+                            onChange={(e) => setMonthSheetFromDate(e.target.value)}
+                          />
+                        </label>
+                        <label className="sa-op-field">
+                          <span>To</span>
+                          <input
+                            type="date"
+                            className="sa-op-filter"
+                            value={monthSheetToDate || ''}
+                            onChange={(e) => setMonthSheetToDate(e.target.value)}
+                          />
+                        </label>
                         <button
                           type="button"
                           className="sa-op-btn-primary"
+                          disabled={loadingMonthSheet}
                           onClick={() =>
                             openClientMonthSheet(row, {
                               fromDate: monthSheetFromDate,
                               toDate: monthSheetToDate
                             })
                           }
-                          disabled={loadingMonthSheet}
                         >
                           {loadingMonthSheet ? <Loader2 size={14} className="spinner-icon" /> : <Activity size={14} />}
-                          Refresh
-                        </button>
-                        <button
-                          type="button"
-                          className="sa-op-btn-export"
-                          onClick={handleExportMonthSheetCSV}
-                          disabled={!days.length || loadingMonthSheet}
-                        >
-                          <Download size={14} />
-                          Export Excel CSV
+                          Apply
                         </button>
                       </div>
                     </div>
 
-                    <div className="sa-box-month-filters">
-                      <label className="sa-op-field">
-                        <span>From</span>
-                        <input
-                          className="sa-op-filter"
-                          type="date"
-                          value={monthSheetFromDate}
-                          max={monthSheetToDate || localDateStr()}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setMonthSheetFromDate(val);
-                            if (val && monthSheetToDate && val > monthSheetToDate) {
-                              setMonthSheetToDate(val);
-                            }
-                          }}
-                          title="From date"
+                    <div className="sa-box-day-body">
+                      {monthSheetError && (
+                        <LoadErrorBanner
+                          message={monthSheetError}
+                          onRetry={() => openClientMonthSheet(row)}
+                          onDismiss={() => setMonthSheetError('')}
                         />
-                      </label>
-                      <label className="sa-op-field">
-                        <span>To</span>
-                        <input
-                          className="sa-op-filter"
-                          type="date"
-                          value={monthSheetToDate}
-                          min={monthSheetFromDate || undefined}
-                          max={localDateStr()}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setMonthSheetToDate(val);
-                            if (val && monthSheetFromDate && val < monthSheetFromDate) {
-                              setMonthSheetFromDate(val);
-                            }
-                          }}
-                          title="To date"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="sa-op-btn-primary"
-                        disabled={loadingMonthSheet || !monthSheetFromDate || !monthSheetToDate}
-                        onClick={() =>
-                          openClientMonthSheet(row, {
-                            fromDate: monthSheetFromDate,
-                            toDate: monthSheetToDate
-                          })
-                        }
-                      >
-                        Apply Filter
-                      </button>
-                      {[
-                        { days: 1, label: 'Today' },
-                        { days: 7, label: '7 days' },
-                        { days: 30, label: '30 days' }
-                      ].map((preset) => {
-                        const range = getDefaultOpTaskRange(preset.days);
-                        const active =
-                          monthSheetFromDate === range.fromDate && monthSheetToDate === range.toDate;
-                        return (
-                          <button
-                            key={preset.days}
-                            type="button"
-                            className={`sa-op-btn-text${active ? ' sa-op-btn-text-active' : ''}`}
-                            disabled={loadingMonthSheet}
-                            onClick={() => openClientMonthSheet(row, { fromDate: range.fromDate, toDate: range.toDate })}
-                          >
-                            {preset.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                      )}
 
-                    <div className="sa-box-stat-grid sa-box-month-stats">
-                      <div className="sa-box-stat-card">
-                        <div className="sa-box-stat-label">Month Inward</div>
-                        <div className="sa-box-stat-value" style={{ color: '#137333' }}>
-                          +{(Number(meta.month_inward_total) || 0).toLocaleString()}
+                      <div className="sa-box-day-stats">
+                        <div className="sa-box-day-stat">
+                          <span className="sa-box-day-stat-label">Opening left</span>
+                          <strong className="sa-box-day-stat-value">{openLeft.toLocaleString()}</strong>
                         </div>
-                      </div>
-                      <div className="sa-box-stat-card">
-                        <div className="sa-box-stat-label">Month Outward</div>
-                        <div className="sa-box-stat-value" style={{ color: '#c5221f' }}>
-                          −{(Number(meta.month_outward_total) || 0).toLocaleString()}
+                        <div className="sa-box-day-stat in">
+                          <span className="sa-box-day-stat-label">Total Received</span>
+                          <strong className="sa-box-day-stat-value">{inTotal.toLocaleString()}</strong>
                         </div>
-                      </div>
-                      <div className="sa-box-stat-card">
-                        <div className="sa-box-stat-label">Closing Total</div>
-                        <div className="sa-box-stat-value primary">
-                          {meta.closing_total == null
-                            ? '—'
-                            : Number(meta.closing_total).toLocaleString()}
+                        <div className="sa-box-day-stat out">
+                          <span className="sa-box-day-stat-label">Total Dispatch</span>
+                          <strong className="sa-box-day-stat-value">{outTotal.toLocaleString()}</strong>
                         </div>
-                      </div>
-                      <div className="sa-box-stat-card">
-                        <div className="sa-box-stat-label">Days</div>
-                        <div className="sa-box-stat-value">
-                          {meta.day_count != null ? meta.day_count : days.length || '—'}
+                        <div className="sa-box-day-stat left">
+                          <span className="sa-box-day-stat-label">Closing left</span>
+                          <strong className="sa-box-day-stat-value">{closeLeft.toLocaleString()}</strong>
                         </div>
-                      </div>
-                    </div>
-
-                    {monthSheetError && (
-                      <LoadErrorBanner
-                        message={monthSheetError}
-                        onRetry={() =>
-                          openClientMonthSheet(row, {
-                            fromDate: monthSheetFromDate,
-                            toDate: monthSheetToDate
-                          })
-                        }
-                        onDismiss={() => setMonthSheetError('')}
-                      />
-                    )}
-
-                    <div className="sa-box-detail-body">
-                      <div className="sa-box-table-head" style={{ borderTop: '1px solid #e0e0e0' }}>
-                        <h3 className="sa-op-title">Daily Sheet (Excel style)</h3>
-                        <span className="sa-box-chart-sub">
-                          {loadingMonthSheet ? 'Loading…' : `${days.length} days`}
-                        </span>
                       </div>
 
-                      {loadingMonthSheet && !days.length ? (
-                        <div className="sa-box-empty">
-                          <SaDataLoading label="Loading 1-month sheet…" compact />
-                        </div>
-                      ) : days.length === 0 ? (
-                        <div className="sa-box-empty">No daily rows for this period.</div>
+                      {loadingMonthSheet ? (
+                        <SaDataLoading label="Loading day-wise Received / Dispatch / Left…" />
+                      ) : daysDesc.length === 0 ? (
+                        <div className="sa-box-empty">No received/dispatch movement in this date range.</div>
                       ) : (
                         <>
-                          <div className="sa-box-table-wrap table-responsive sa-box-excel-wrap">
-                            <table className="logs-table sa-box-excel-table">
+                          <p className="sa-box-day-formula" role="note">
+                            <span className="sa-box-day-formula-label">Day formula</span>
+                            <span className="sa-box-day-formula-eq">
+                              Start + Received − Dispatch = Left
+                            </span>
+                            <span className="sa-box-day-formula-hint">
+                              Sirf Received / Dispatch records · Start = previous Left
+                            </span>
+                          </p>
+                          <div className="sa-box-day-table-wrap table-responsive">
+                            <table className="logs-table sa-box-day-table">
                               <thead>
                                 <tr>
                                   <th>Date</th>
-                                  <th>Warehouse</th>
-                                  <th>Chamber</th>
-                                  <th>Warehouse Supervisor</th>
-                                  <th className="sa-box-th-center">Morning</th>
-                                  <th className="sa-box-th-center">Evening</th>
-                                  <th className="sa-box-th-center">Inward</th>
-                                  <th className="sa-box-th-center">Outward</th>
-                                  <th className="sa-box-th-center">Total Boxes</th>
+                                  <th className="sa-box-th-center">Start</th>
+                                  <th className="sa-box-th-center">Received</th>
+                                  <th className="sa-box-th-center">Dispatch</th>
+                                  <th className="sa-box-th-center">Left</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {paginatedDays.map((d) => (
-                                  <tr key={d.date}>
-                                    <td className="sa-box-excel-date">{formatDate(d.date)}</td>
-                                    <td className="sa-box-muted">{warehouseLabel}</td>
-                                    <td className="sa-box-muted">{chamberLabel}</td>
-                                    <td className="sa-box-muted">{supervisorLabel}</td>
-                                    <td className="sa-box-td-center">{cellQty(d.morning_qty)}</td>
-                                    <td className="sa-box-td-center">{cellQty(d.evening_qty)}</td>
-                                    <td className={`sa-box-td-center ${Number(d.inward_boxes) > 0 ? 'sa-box-flow up' : ''}`}>
-                                      {Number(d.inward_boxes) > 0
-                                        ? `+${Number(d.inward_boxes).toLocaleString()}`
-                                        : '0'}
-                                    </td>
-                                    <td className={`sa-box-td-center ${Number(d.outward_boxes) > 0 ? 'sa-box-flow down' : ''}`}>
-                                      {Number(d.outward_boxes) > 0
-                                        ? `−${Number(d.outward_boxes).toLocaleString()}`
-                                        : '0'}
-                                    </td>
-                                    <td className="sa-box-td-center sa-box-qty-latest">
-                                      {cellQty(d.total_boxes)}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {pageDays.map((d) => {
+                                  const inn = Math.max(0, Number(d.inward_boxes) || 0);
+                                  const out = Math.max(0, Number(d.outward_boxes) || 0);
+                                  const hasPrevious = d.has_previous !== false && d.start_left != null;
+                                  const start = hasPrevious
+                                    ? Math.max(0, Number(d.start_left) || 0)
+                                    : null;
+                                  const left = d.left_boxes != null
+                                    ? Math.max(0, Number(d.left_boxes) || 0)
+                                    : Math.max(0, Number(d.total_boxes) || 0);
+                                  let rowEq = null;
+                                  if (start != null && (inn > 0 || out > 0)) {
+                                    if (inn > 0 && out > 0) {
+                                      rowEq = `${cell(start)} + ${cell(inn)} − ${cell(out)} = ${cell(left)}`;
+                                    } else if (inn > 0) {
+                                      rowEq = `${cell(start)} + ${cell(inn)} = ${cell(left)}`;
+                                    } else {
+                                      rowEq = `${cell(start)} − ${cell(out)} = ${cell(left)}`;
+                                    }
+                                  }
+                                  return (
+                                    <tr key={d.date} className={inn || out ? 'sa-box-day-row-active' : ''}>
+                                      <td className="sa-box-day-date">{fmtDay(d.date)}</td>
+                                      <td className="sa-box-td-center sa-box-day-start">
+                                        {start != null ? cell(start) : ''}
+                                      </td>
+                                      <td className="sa-box-td-center sa-box-day-in">
+                                        {inn > 0 ? cell(inn) : ''}
+                                      </td>
+                                      <td className="sa-box-td-center sa-box-day-out">
+                                        {out > 0 ? cell(out) : ''}
+                                      </td>
+                                      <td className="sa-box-td-center sa-box-day-left">
+                                        {cell(left)}
+                                        {rowEq ? <div className="sa-box-day-row-eq">{rowEq}</div> : null}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
                           <PaginationBar
                             page={monthSheetPage}
-                            totalItems={days.length}
+                            totalItems={daysDesc.length}
                             pageSize={monthSheetPerPage}
                             onPageChange={setMonthSheetPage}
                             itemLabel="days"
@@ -7826,7 +7897,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div className="sa-op-dir-toolbar">
                   <div>
                     <h2 className="sa-op-title">Daily Box Inventory Tracker</h2>
-                    <p className="sa-op-sub">Select a warehouse to view its box inventory below.</p>
+                    <p className="sa-op-sub">
+                      Client stock by warehouse — click a client for day-wise Received / Dispatch / Left.
+                    </p>
                   </div>
                   <div className="sa-op-dir-tools">
                     <button
@@ -7861,9 +7934,6 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         setDeltasWarehouseFilter(wh);
                         setDeltasClientFilter('All');
                         setDeltasCurrentPage(1);
-                        setDeltasViewClient(null);
-                        setClientMonthSheet(null);
-                        setMonthSheetError('');
                         loadDailyBoxTrackerData(wh);
                       }}
                     >
@@ -7921,14 +7991,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div className="sa-box-chart-body">
                   <div className="sa-box-chart-head">
                     <h3 className="sa-box-chart-title">
-                      <span className={`sa-box-live-dot${loadingDeltas ? '' : ''}`} style={loadingDeltas ? { background: '#9aa0a6', boxShadow: 'none' } : undefined} />
-                      Clients × Boxes
+                      <span className="sa-box-live-dot" />
+                      Clients × Boxes left
                     </h3>
                     <span className="sa-box-chart-sub">
                       {deltasWarehouseFilter === 'All' ? 'All Warehouses' : deltasWarehouseFilter}
                       {deltasClientFilter !== 'All' ? ` · ${deltasClientFilter}` : ''}
                       {' · '}
-                      {loadingDeltas ? 'syncing…' : 'live DB'}
+                      Left {totalBoxes.toLocaleString()}
                     </span>
                   </div>
                   {renderClientBoxesPieSvg()}
@@ -7938,18 +8008,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               <section className="sa-op-card">
                 <div className="sa-box-table-head">
                   <h3 className="sa-op-title">
-                    {deltasWarehouseFilter === 'All' ? 'All Warehouses — Box Inventory' : `${deltasWarehouseFilter} — Box Inventory`}
+                    {deltasWarehouseFilter === 'All'
+                      ? 'All Warehouses — Client Stock'
+                      : `${deltasWarehouseFilter} — Client Stock`}
                   </h3>
                   <div className="sa-box-table-meta">
                     <span>
-                      Total boxes: <strong>{totalBoxes.toLocaleString()}</strong>
-                    </span>
-                    <span className={netDelta > 0 ? 'net-up' : netDelta < 0 ? 'net-down' : ''}>
-                      {netDelta > 0
-                        ? `Net inward: +${netDelta}`
-                        : netDelta < 0
-                          ? `Net outward: ${Math.abs(netDelta)}`
-                          : 'Net: No change'}
+                      Left now: <strong>{totalBoxes.toLocaleString()}</strong>
                     </span>
                     <button
                       type="button"
@@ -7964,9 +8029,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 </div>
 
                 {loadingDeltas ? (
-                  <SaDataLoading label="Loading warehouse inventory…" />
+                  <SaDataLoading label="Loading client stock…" />
                 ) : filteredRows.length === 0 ? (
-                  <div className="sa-box-empty">No box inventory data matches this filter.</div>
+                  <div className="sa-box-empty">No clients match this filter.</div>
                 ) : (
                   <>
                     <div className="sa-box-table-wrap table-responsive">
@@ -7975,98 +8040,29 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <tr>
                             <th>Client</th>
                             <th>Warehouse</th>
-                            <th>Chamber</th>
-                            <th className="sa-box-th-center">Prev Qty</th>
-                            <th className="sa-box-th-center">Latest Qty</th>
-                            <th className="sa-box-th-center">Box Temp</th>
-                            <th className="sa-box-th-center">Slot</th>
-                            <th className="sa-box-th-center">In / Out</th>
-                            <th className="sa-box-th-center">Latest Date</th>
-                            <th className="sa-box-th-center">Status</th>
-                            <th className="sa-box-th-center">Action</th>
+                            <th className="sa-box-th-center">Left Now</th>
+                            <th className="sa-box-th-center">Last Audit</th>
                           </tr>
                         </thead>
                         <tbody>
                           {paginatedRows.map((row, idx) => {
-                            const latestQty = Math.max(0, Number(row.latest_count) || 0);
-                            const prevQty = Math.max(0, Number(row.prev_count) || 0);
-                            const inwardQty = Number(row.inward_qty) >= 0
-                              ? Number(row.inward_qty)
-                              : (latestQty > prevQty ? latestQty - prevQty : 0);
-                            const outwardQty = Number(row.outward_qty) >= 0
-                              ? Number(row.outward_qty)
-                              : (prevQty > latestQty ? prevQty - latestQty : 0);
-                            const isUp = inwardQty > 0;
-                            const isDown = outwardQty > 0;
-                            // Only one at a time: Plus OR Minus
-                            const flowLabel = isUp
-                              ? `Plus: +${inwardQty}`
-                              : isDown
-                                ? `Minus: -${outwardQty}`
-                                : '0';
-                            const latestTempRaw = row.latest_temp ?? row.box_temp ?? row.chamber_temp;
-                            const latestTemp = latestTempRaw != null && latestTempRaw !== '' && Number.isFinite(Number(latestTempRaw))
-                              ? Number(latestTempRaw)
-                              : null;
-                            const boxChamberType =
-                              pickComplianceZone(row.chamber_type || row.latest_chamber_type) ||
-                              String(row.chamber_type || row.latest_chamber_type || 'Frozen').trim() ||
-                              'Frozen';
-                            const boxTempDev = getChamberTempDeviation(latestTemp, boxChamberType);
-                            const boxTempOor = boxTempDev != null;
-                            const boxTypeLabel =
-                              boxTempDev === 'low'
-                                ? `< ${boxChamberType}`
-                                : boxTempDev === 'high'
-                                  ? `> ${boxChamberType}`
-                                  : boxChamberType;
-                            const slotLabel = resolveShiftLabel(row.latest_shift || row.latest_slot, null, null);
-                            const isMorningSlot = slotLabel === 'Morning';
-
+                            const left = leftNowOf(row);
                             return (
-                              <tr key={`${row.client_name}-${row.chamber_name}-${idx}`}>
-                                <td className="sa-box-client-name">{row.client_name}</td>
+                              <tr
+                                key={`${row.client_name}-${row.warehouse_name}-${idx}`}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => openClientMonthSheet(row)}
+                                title="View day-wise In / Out / Left"
+                              >
+                                <td className="sa-box-client-name" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
+                                  {row.client_name}
+                                </td>
                                 <td className="sa-box-muted">{row.warehouse_name || '-'}</td>
-                                <td className="sa-box-muted">{row.chamber_name || '-'}</td>
-                                <td className="sa-box-td-center sa-box-muted">
-                                  {row.prev_date ? prevQty.toLocaleString() : '-'}
-                                </td>
                                 <td className="sa-box-td-center sa-box-qty-latest">
-                                  {latestQty.toLocaleString()}
-                                </td>
-                                <td className="sa-box-td-center" style={{
-                                  fontWeight: 700,
-                                  color: latestTemp == null ? '#5f6368' : boxTempOor ? '#c5221f' : '#137333'
-                                }}>
-                                  <div>{latestTemp == null ? '—' : `${latestTemp}°C`}</div>
-                                  <div style={{ fontSize: '0.68rem', fontWeight: 800, marginTop: 2 }}>
-                                    {boxTypeLabel}
-                                  </div>
-                                </td>
-                                <td className="sa-box-td-center">
-                                  <span className={`sa-box-slot ${isMorningSlot ? 'morning' : 'evening'}`}>
-                                    {slotLabel}
-                                  </span>
-                                </td>
-                                <td className={`sa-box-td-center sa-box-flow ${isUp ? 'up' : isDown ? 'down' : 'neutral'}`}>
-                                  {flowLabel}
+                                  {left.toLocaleString()}
                                 </td>
                                 <td className="sa-box-td-center sa-box-muted">
-                                  {formatDate(row.latest_date)}
-                                </td>
-                                <td className="sa-box-td-center">
-                                  <span className={`sa-box-status ${isUp ? 'inward' : isDown ? 'outward' : 'neutral'}`}>
-                                    {isUp ? 'Inward' : isDown ? 'Outward' : 'No Change'}
-                                  </span>
-                                </td>
-                                <td className="sa-box-td-center">
-                                  <button
-                                    type="button"
-                                    className="sa-box-view-link"
-                                    onClick={() => openClientMonthSheet(row)}
-                                  >
-                                    View
-                                  </button>
+                                  {formatDate(row.last_audit_date)}
                                 </td>
                               </tr>
                             );
@@ -8081,7 +8077,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         totalItems={filteredRows.length}
                         pageSize={deltasPerPage}
                         onPageChange={setDeltasCurrentPage}
-                        itemLabel="lots"
+                        itemLabel="clients"
                       />
                     )}
                   </>
@@ -13358,24 +13354,25 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         </div>
       )}
 
-      {/* Lightbox View Modal — proper size + click to zoom */}
+      {/* Lightbox View Modal — Ctrl+scroll zooms image only (frame fixed) */}
       {lightboxImg && (
         <div
           className="sa-lightbox-overlay"
           onClick={() => {
             setLightboxImg(null);
-            setLightboxZoomed(false);
+            setLightboxZoom(1);
           }}
         >
           <div
-            className={`sa-lightbox-popup${lightboxZoomed ? ' is-zoomed' : ''}`}
+            className="sa-lightbox-popup"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="sa-lightbox-header">
               <strong>
                 Photo Preview
                 <span className="sa-lightbox-hint">
-                  {lightboxZoomed ? ' · Click image to zoom out' : ' · Click image to zoom in'}
+                  {' '}· Ctrl + scroll to zoom
+                  {lightboxZoom > 1 ? ` · drag to move · ${Math.round(lightboxZoom * 100)}%` : ''}
                 </span>
               </strong>
               <div className="sa-lightbox-actions">
@@ -13397,7 +13394,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   className="sa-lightbox-close"
                   onClick={() => {
                     setLightboxImg(null);
-                    setLightboxZoomed(false);
+                    setLightboxZoom(1);
                   }}
                   title="Close"
                 >
@@ -13406,13 +13403,29 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 </button>
               </div>
             </div>
-            <div className={`sa-lightbox-body${lightboxZoomed ? ' is-zoomed' : ''}`}>
+            <div
+              ref={lightboxBodyRef}
+              className={`sa-lightbox-body${lightboxZoom > 1 ? ' is-zoomed' : ''}${lightboxPanning ? ' is-panning' : ''}`}
+              onPointerDown={onLightboxPointerDown}
+              onPointerMove={onLightboxPointerMove}
+              onPointerUp={onLightboxPointerUp}
+              onPointerCancel={onLightboxPointerUp}
+            >
               <img
                 src={lightboxImg}
                 alt="Enlarged audit attachment"
-                className={lightboxZoomed ? 'is-zoomed' : ''}
-                onClick={() => setLightboxZoomed((z) => !z)}
-                title={lightboxZoomed ? 'Click to zoom out' : 'Click to zoom in'}
+                style={
+                  lightboxZoom > 1
+                    ? {
+                        maxWidth: 'none',
+                        maxHeight: 'none',
+                        width: `${Math.round(lightboxZoom * 100)}%`,
+                        height: 'auto'
+                      }
+                    : undefined
+                }
+                draggable={false}
+                title={lightboxZoom > 1 ? 'Drag to move · Ctrl + scroll to zoom' : 'Ctrl + scroll to zoom'}
               />
             </div>
           </div>

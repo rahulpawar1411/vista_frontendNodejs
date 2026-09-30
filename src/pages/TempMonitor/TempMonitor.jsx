@@ -58,7 +58,8 @@ function buildInitialFormState() {
         inspection_time: draft.inspection_time || currentTimeStr,
         box_temp: draft.box_temp || '',
         monitor_supervisor_name: defaultSupervisor || draft.monitor_supervisor_name || '',
-        box_count: draft.box_count || ''
+        box_count: draft.box_count || '',
+        remarks: ''
       },
       isChamberCustom: !isPresetChamber(draft.chamber_name || 'BDF-1'),
       isTimeCustom: !isPresetInspectionTime(draft.inspection_time || currentTimeStr)
@@ -72,7 +73,8 @@ function buildInitialFormState() {
       inspection_time: currentTimeStr,
       box_temp: '',
       monitor_supervisor_name: defaultSupervisor,
-      box_count: ''
+      box_count: '',
+      remarks: ''
     },
     isChamberCustom: false,
     isTimeCustom: false
@@ -160,7 +162,8 @@ export default function TempMonitor({ forcedMenu, onMenuChange, editData, setEdi
         inspection_time: time,
         box_temp: editData.box_temp !== undefined && editData.box_temp !== null ? editData.box_temp.toString() : '',
         monitor_supervisor_name: editData.monitor_supervisor_name || '',
-        box_count: editData.box_count !== undefined && editData.box_count !== null ? editData.box_count.toString() : ''
+        box_count: editData.box_count !== undefined && editData.box_count !== null ? editData.box_count.toString() : '',
+        remarks: editData.remarks || ''
       });
       setIsChamberCustom(!isPresetChamber(chamber));
       setIsTimeCustom(!isPresetInspectionTime(time));
@@ -320,8 +323,9 @@ export default function TempMonitor({ forcedMenu, onMenuChange, editData, setEdi
     const isTempEmpty = !formData.box_temp;
     const isSupervisorEmpty = !formData.monitor_supervisor_name || !formData.monitor_supervisor_name.trim();
     const isPhotoEmpty = !(imageFile || imagePreview);
+    const isRemarksEmpty = !!editData && !(formData.remarks && String(formData.remarks).trim());
 
-    if (isDateEmpty || isClientEmpty || isChamberEmpty || isTimeEmpty || isTempEmpty || isSupervisorEmpty || isPhotoEmpty) {
+    if (isDateEmpty || isClientEmpty || isChamberEmpty || isTimeEmpty || isTempEmpty || isSupervisorEmpty || isPhotoEmpty || isRemarksEmpty) {
       setShowErrors(true);
       
       const missingFields = [];
@@ -332,6 +336,7 @@ export default function TempMonitor({ forcedMenu, onMenuChange, editData, setEdi
       if (isTempEmpty) missingFields.push('Box Temp');
       if (isSupervisorEmpty) missingFields.push('Monitor Supervisor Name');
       if (isPhotoEmpty) missingFields.push('Temp Sensor Photo');
+      if (isRemarksEmpty) missingFields.push('Remarks (reason for update)');
 
       alert(`⚠️ Validation Error:\nPlease fill all required fields:\n- ${missingFields.join('\n- ')}`);
       return;
@@ -360,78 +365,90 @@ export default function TempMonitor({ forcedMenu, onMenuChange, editData, setEdi
   };
 
   const handleConfirmSubmit = async () => {
+    if (submitting) return;
     setSubmitting(true);
 
-    const submissionData = new FormData();
-    submissionData.append('entry_date', formData.entry_date);
-    submissionData.append('client_name', formData.client_name);
-    submissionData.append('chamber_name', formData.chamber_name);
-    submissionData.append('inspection_time', formData.inspection_time);
-    submissionData.append('box_temp', formData.box_temp);
-    submissionData.append('monitor_supervisor_name', formData.monitor_supervisor_name);
-    submissionData.append('box_count', formData.box_count || '');
-    
-    // Pass frontend-audited capture times to the backend database insert
-    if (verificationData) {
-      submissionData.append('photo_capture_time', verificationData.photo_capture_time_str);
-      submissionData.append('time_variance_minutes', verificationData.time_variance_minutes);
-    }
-
-    if (imageFile) {
-      submissionData.append('temp_sensor_image', imageFile);
-    }
-
-    let res;
-    if (editData) {
-      res = await updateChamberLog(editData.id, submissionData);
-    } else {
-      res = await addChamberLog(submissionData);
-    }
-    setSubmitting(false);
-    setVerificationData(null);
-    loadLogs();
-
-    // Show Success Alert Notification
-    setSuccessMsg(editData ? 'Chamber temperature updated successfully' : 'Chamber temperature saved successfully');
-    if (editData && setEditData) setEditData(null);
-    if (editData && onMenuChange) {
-      setTimeout(() => onMenuChange('History'), 1500);
-    }
-
-    // Reset Form
-    setIsChamberCustom(false);
-    setIsTimeCustom(false);
-    setImageFile(null);
-    setImagePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-
-    clearChamberFormDraft();
-    
-    const now = new Date();
-    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    let defaultSupervisor = '';
     try {
-      const userJson = localStorage.getItem('user');
-      if (userJson) {
-        const parsedUser = JSON.parse(userJson);
-        defaultSupervisor = parsedUser.full_name || parsedUser.fullName || parsedUser.email || '';
+      const submissionData = new FormData();
+      submissionData.append('entry_date', formData.entry_date);
+      submissionData.append('client_name', formData.client_name);
+      submissionData.append('chamber_name', formData.chamber_name);
+      submissionData.append('inspection_time', formData.inspection_time);
+      submissionData.append('box_temp', formData.box_temp);
+      submissionData.append('monitor_supervisor_name', formData.monitor_supervisor_name);
+      submissionData.append('box_count', formData.box_count || '');
+
+      if (editData) {
+        const remarks = String(formData.remarks || '').trim() || 'Updated by Super Admin';
+        submissionData.append('remarks', remarks);
       }
-    } catch (err) {}
 
-    setFormData({
-      entry_date: todayStr,
-      client_name: '',
-      chamber_name: 'BDF-1',
-      inspection_time: currentTimeStr,
-      box_temp: '',
-      monitor_supervisor_name: defaultSupervisor,
-      box_count: ''
-    });
+      // Pass frontend-audited capture times to the backend database insert
+      if (verificationData) {
+        submissionData.append('photo_capture_time', verificationData.photo_capture_time_str);
+        submissionData.append('time_variance_minutes', verificationData.time_variance_minutes);
+      }
 
-    setTimeout(() => {
-      setSuccessMsg('');
-    }, 4000);
+      if (imageFile) {
+        submissionData.append('temp_sensor_image', imageFile);
+      }
+
+      if (editData) {
+        await updateChamberLog(editData.id, submissionData);
+      } else {
+        await addChamberLog(submissionData);
+      }
+
+      setVerificationData(null);
+      loadLogs();
+
+      // Show Success Alert Notification
+      setSuccessMsg(editData ? 'Chamber temperature updated successfully' : 'Chamber temperature saved successfully');
+      if (editData && setEditData) setEditData(null);
+      if (editData && onMenuChange) {
+        setTimeout(() => onMenuChange('History'), 1500);
+      }
+
+      // Reset Form
+      setIsChamberCustom(false);
+      setIsTimeCustom(false);
+      setImageFile(null);
+      setImagePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      clearChamberFormDraft();
+      
+      const now = new Date();
+      const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      let defaultSupervisor = '';
+      try {
+        const userJson = localStorage.getItem('user');
+        if (userJson) {
+          const parsedUser = JSON.parse(userJson);
+          defaultSupervisor = parsedUser.full_name || parsedUser.fullName || parsedUser.email || '';
+        }
+      } catch (err) {}
+
+      setFormData({
+        entry_date: todayStr,
+        client_name: '',
+        chamber_name: 'BDF-1',
+        inspection_time: currentTimeStr,
+        box_temp: '',
+        monitor_supervisor_name: defaultSupervisor,
+        box_count: '',
+        remarks: ''
+      });
+
+      setTimeout(() => {
+        setSuccessMsg('');
+      }, 4000);
+    } catch (err) {
+      alert(err?.message || 'Failed to save chamber temperature record.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCancelVerification = () => {
@@ -618,6 +635,19 @@ export default function TempMonitor({ forcedMenu, onMenuChange, editData, setEdi
                 className={showErrors && !formData.monitor_supervisor_name ? 'input-error' : ''}
               />
             </div>
+
+            {editData && (
+              <div className="direct-form-group direct-form-group-wide" style={{ gridColumn: '1 / -1' }}>
+                <label>Remarks (reason for update) *</label>
+                <textarea
+                  rows={3}
+                  placeholder="Why is this record being updated?"
+                  value={formData.remarks || ''}
+                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                  className={showErrors && !(formData.remarks || '').trim() ? 'input-error' : ''}
+                />
+              </div>
+            )}
 
             {/* Field 7: Temp Sensor Photo */}
             <div className="direct-form-group">
