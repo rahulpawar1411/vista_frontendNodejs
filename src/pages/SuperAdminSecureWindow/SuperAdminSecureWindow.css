@@ -2,6 +2,7 @@
    Super Admin Secure Area Styles (src/pages/SuperAdminSecureWindow/SuperAdminSecureWindow.css)
    Exact match with DO Operator window theme variables, sizing and layouts.
    ==================================================================== */
+@import './SaRegisterOperator.css';
 
 /* Match ~80% browser zoom for denser Super Admin layout (modals/portals included) */
 html.sa-ui-zoom-80 {

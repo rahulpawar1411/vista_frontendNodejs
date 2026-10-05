@@ -10,6 +10,11 @@ import { X, Calendar, User, Thermometer, ShieldCheck } from 'lucide-react';
 import { addChamberLog } from '../../services/api';
 import './AddChamberTempModal.css'; // Paired CSS file
 
+/**
+ * WHAT: Modal shortcut to submit one daily chamber temperature reading.
+ * WHY: Sales admin can log a chamber reading without full DO TempMonitor page.
+ * HOW: addChamberLog POST; closes on success and calls onLogAdded.
+ */
 export default function AddChamberTempModal({ onClose, onLogAdded }) {
   const todayStr = new Date().toISOString().split('T')[0];
 

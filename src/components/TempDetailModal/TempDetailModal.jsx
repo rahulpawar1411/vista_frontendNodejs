@@ -8,6 +8,11 @@ import React from 'react';
 import { X, Phone, MessageCircle, Printer, ShieldCheck, Truck, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import './TempDetailModal.css'; // Paired CSS file
 
+/**
+ * WHAT: Read-only popup showing one legacy temperature log entry.
+ * WHY: Quick inspection from sales temp list without leaving the page.
+ * HOW: Renders log fields; onClose hides modal (no API writes).
+ */
 export default function TempDetailModal({ log, onClose }) {
   if (!log) return null;
 

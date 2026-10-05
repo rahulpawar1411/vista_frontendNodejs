@@ -54,10 +54,28 @@ export function confirmExportSize(rowCount, { alreadyWarned = false } = {}) {
   return true;
 }
 
+/** WHAT: Wraps one cell in quotes for CSV. WHY/HOW: Doubles internal quotes per Excel rules. */
 export function escapeCsvCell(val) {
   return `"${String(val ?? '').replace(/"/g, '""')}"`;
 }
 
+/**
+ * WHAT: done/expected text that Excel will not auto-convert to a date.
+ * WHY: Values like 11/11 become Nov 11 in Excel unless forced as text.
+ * HOW: Emits ="11/11" formula so the cell displays literally 11/11.
+ */
+export function excelRatioText(done, expected) {
+  const d = Number(done) || 0;
+  const e = Number(expected) || 0;
+  if (e <= 0) return '—';
+  return `="${d}/${e}"`;
+}
+
+/**
+ * WHAT: Builds a full CSV string with UTF-8 BOM for Excel.
+ * WHY: All export buttons share one format.
+ * HOW: Header row plus escaped data rows via escapeCsvCell.
+ */
 export function buildCsv(headers, rowArrays) {
   let csv = '\uFEFF';
   csv += headers.map(escapeCsvCell).join(',') + '\n';
@@ -67,6 +85,11 @@ export function buildCsv(headers, rowArrays) {
   return csv;
 }
 
+/**
+ * WHAT: Triggers browser download of a CSV file.
+ * WHY: Users expect a .csv file, not clipboard copy.
+ * HOW: Blob + temporary <a download> click, then revokes object URL.
+ */
 export function downloadCsv(filename, csvContent) {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -80,6 +103,7 @@ export function downloadCsv(filename, csvContent) {
   URL.revokeObjectURL(url);
 }
 
+/** WHAT: Same as escapeCsvCell (alias for toCsvContent). WHY/HOW: Keeps naming consistent in helpers. */
 export function csvEscape(val) {
   return `"${String(val ?? '').replace(/"/g, '""')}"`;
 }
@@ -93,6 +117,11 @@ export function toCsvContent(headers = [], rows = []) {
   return `\uFEFF${lines.join('\n')}\n`;
 }
 
+/**
+ * WHAT: User-visible export status like "Exporting… 42%".
+ * WHY: Large exports need progress in the button label.
+ * HOW: Uses loaded/total from fetchAllLogPages onProgress callback.
+ */
 export function formatExportProgress(progress) {
   if (!progress) return 'Exporting…';
   const loaded = Number(progress.loaded) || 0;
@@ -105,7 +134,11 @@ export function formatExportProgress(progress) {
   return 'Exporting…';
 }
 
-/** Cap rows after fetch; confirm if large. */
+/**
+ * WHAT: Trims row list to EXPORT_MAX_ROWS and asks user to confirm huge exports.
+ * WHY: Protects browser memory on accidental full-database export.
+ * HOW: slice + confirmExportSize; throws if user cancels.
+ */
 export function finalizeExportRows(rows) {
   let list = Array.isArray(rows) ? rows : [];
   if (list.length > EXPORT_MAX_ROWS) {
@@ -117,6 +150,7 @@ export function finalizeExportRows(rows) {
   return list;
 }
 
+/** WHAT: True when user clicked Cancel on export confirm. WHY/HOW: Suppresses error banner for voluntary cancel. */
 export function isExportCancelled(err) {
   return String(err?.message || '') === 'Export cancelled.';
 }
@@ -145,7 +179,12 @@ export function getExportErrorMessage(err) {
   return err.message || 'Export failed. Please try again.';
 }
 
-/** @deprecated Prefer banner + getExportErrorMessage; kept for tiny sync fallbacks */
+/**
+ * WHAT: Legacy alert() for export errors.
+ * WHY: Old code paths; new UI uses ExportErrorBanner.
+ * HOW: Delegates to getExportErrorMessage then window.alert.
+ * @deprecated Prefer banner + getExportErrorMessage
+ */
 export function showExportError(err) {
   const msg = getExportErrorMessage(err);
   if (!msg) return;

@@ -8,6 +8,11 @@ import React from 'react';
 import { Database, Server, Smartphone, Code } from 'lucide-react';
 import './Settings.css'; // Paired CSS file
 
+/**
+ * WHAT: Read-only info about API URL, environment, and app version hints.
+ * WHY: Admins verify which backend and build they are connected to.
+ * HOW: Displays import.meta.env and static labels (no secrets).
+ */
 export default function Settings() {
   return (
     <div className="settings-page">
@@ -61,10 +66,6 @@ export default function Settings() {
         <div className="info-row">
           <span>CSS Pattern</span>
           <strong>1-to-1 JSX/CSS Pairing</strong>
-        </div>
-        <div className="info-row">
-          <span>Code Comments</span>
-          <strong>Fresher / Beginner Friendly</strong>
         </div>
       </div>
     </div>

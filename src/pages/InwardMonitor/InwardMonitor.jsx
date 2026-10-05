@@ -14,6 +14,11 @@ import { resolveMediaSrc } from '../../utils/resolveMediaSrc';
 import exifr from 'exifr';
 import './InwardMonitor.css';
 
+/**
+ * WHAT: Form to log inward (receiving) deliveries with photos and temperatures.
+ * WHY: Warehouse must prove product condition when goods enter the facility.
+ * HOW: Multipart FormData POST to inward-logs; supports edit when editData is set from History.
+ */
 export default function InwardMonitor({ editData, setEditData, setActiveDOMenu }) {
   const getLocalTodayStr = () => {
     const today = new Date();

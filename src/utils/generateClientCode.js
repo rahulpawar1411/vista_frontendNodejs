@@ -1,4 +1,8 @@
-/** Generate client master code from client + warehouse labels. */
+/**
+ * WHAT: Suggests client master code CL-{warehouse}-{client} from names/codes.
+ * WHY: Client codes must tie to a warehouse for filtering and reports.
+ * HOW: Builds tokens from warehouse code or initials plus client name slug.
+ */
 export function generateClientCode(clientName, warehouseName, warehouseCode) {
   const slugPart = (value, maxLen = 14) =>
     String(value || '')

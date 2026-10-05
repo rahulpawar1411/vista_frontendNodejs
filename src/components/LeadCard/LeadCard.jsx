@@ -8,6 +8,11 @@ import React from 'react';
 import { Phone, MessageCircle, Mail, Building2, ChevronRight } from 'lucide-react';
 import './LeadCard.css'; // Paired CSS file
 
+/**
+ * WHAT: One row/card summarizing a sales lead in the list.
+ * WHY: Clickable preview before opening full LeadDetails.
+ * HOW: Shows name, company, status; onSelect(lead) when user opens details.
+ */
 export default function LeadCard({ lead, onSelect }) {
   // Format currency value in INR (e.g. ₹45,000)
   const formattedValue = new Intl.NumberFormat('en-IN', {

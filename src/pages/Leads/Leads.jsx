@@ -12,6 +12,11 @@ import './Leads.css'; // Paired CSS file
 
 const STATUS_FILTERS = ['All', 'New', 'Contacted', 'In Progress', 'Won', 'Lost'];
 
+/**
+ * WHAT: Searchable list of sales leads with status filters.
+ * WHY: Sales team tracks prospects from New through Won/Lost.
+ * HOW: fetchLeads; filter client-side; LeadCard opens LeadDetails via setSelectedLead.
+ */
 export default function Leads({ setSelectedLead }) {
   const [leads, setLeads] = useState([]);
   const [activeFilter, setActiveFilter] = useState('All');

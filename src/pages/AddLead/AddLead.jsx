@@ -9,6 +9,11 @@ import { Save, CheckCircle } from 'lucide-react';
 import { createLead } from '../../services/api';
 import './AddLead.css'; // Paired CSS file
 
+/**
+ * WHAT: Form to create a new sales lead in the CRM.
+ * WHY: New inquiries must be stored in MySQL, not only on paper.
+ * HOW: Validates fields and POST createLead; returns to leads list on success.
+ */
 export default function AddLead({ setActiveTab }) {
   const [formData, setFormData] = useState({
     name: '',

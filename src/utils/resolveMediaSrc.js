@@ -24,7 +24,11 @@ function toUploadsUrl(relPath) {
   return origin ? `${origin}/${clean}` : `/${clean}`;
 }
 
-/** Map Cloudinary CRM URL → local uploads path. */
+/**
+ * WHAT: Converts an old Cloudinary HTTPS URL to a local uploads/crm/… path.
+ * WHY: Server now serves files from disk but DB may still store CDN URLs.
+ * HOW: Parses /upload/ segment and keeps inward/outward/daily folder structure.
+ */
 export function cloudinaryUrlToUploadsPath(raw) {
   if (raw == null) return null;
   const value = String(raw).trim();
@@ -40,7 +44,11 @@ export function cloudinaryUrlToUploadsPath(raw) {
   return `uploads/crm/${rest}`;
 }
 
-/** Map uploads/… path → Cloudinary CDN URL (optional fallback only). */
+/**
+ * WHAT: Builds Cloudinary CDN URL from a local uploads path (reverse mapping).
+ * WHY: Optional fallback when local file missing but CDN still has the image.
+ * HOW: Uses VITE_CLOUDINARY_CLOUD_NAME and crm folder pattern.
+ */
 export function uploadsPathToCloudinaryUrl(raw) {
   if (raw == null) return null;
   const value = String(raw).trim().replace(/\\/g, '/').replace(/^\/+/, '');
@@ -65,9 +73,9 @@ function preferCdnFirst() {
 }
 
 /**
- * Resolve a single best-effort src for <img>.
- * Default: Cloudinary CDN when VITE_PREFER_CLOUDINARY=true.
- * Otherwise server /uploads.
+ * WHAT: Pick the best single URL to show in an <img> tag.
+ * WHY: Photos may live on CDN or local server depending on age and env flags.
+ * HOW: First entry from buildMediaSrcCandidates, preferring CDN when VITE_PREFER_CLOUDINARY=true.
  */
 export function resolveMediaSrc(path) {
   const candidates = buildMediaSrcCandidates(path);
@@ -80,8 +88,9 @@ export function resolveMediaSrc(path) {
 }
 
 /**
- * Ordered candidates for onError fallback.
- * Default: local uploads first, then original Cloudinary URL.
+ * WHAT: Ordered list of URLs to try if an image fails to load.
+ * WHY: FallbackImg uses this for automatic CDN ↔ uploads retry.
+ * HOW: Normalizes path; maps Cloudinary ↔ uploads; dedupes URLs.
  */
 export function buildMediaSrcCandidates(path) {
   if (path == null) return [];

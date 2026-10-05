@@ -10,6 +10,11 @@ import { Clock, Menu, X, Home, Users, Thermometer, Settings, ChevronRight, Shiel
 import Logo from '../Logo/Logo';
 import './Header.css'; // Paired CSS file
 
+/**
+ * WHAT: Top bar with logo, live clock, title, and mobile navigation drawer.
+ * WHY: Sales admin pages need navigation on small screens without a bottom menu.
+ * HOW: Hamburger opens a right drawer; selecting a tab calls setActiveTab and closes the drawer.
+ */
 export default function Header({ title, activeTab, setActiveTab }) {
   const [timeState, setTimeState] = useState(new Date());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

@@ -43,6 +43,11 @@ const MENU = [
 
 const LOGS_PER_PAGE = 12;
 
+/**
+ * WHAT: Customer (mobile/web) portal to view their temperature logs and submit reports.
+ * WHY: Clients need read-only access without Super Admin tools.
+ * HOW: Menu tabs load paginated chamber/inward/outward logs scoped to the logged-in customer.
+ */
 export default function SubAdminSecureWindow({ user, onLogout }) {
   const [activeMenu, setActiveMenu] = useState(() => {
     return localStorage.getItem('sub_admin_active_menu') || 'dashboard';

@@ -22,6 +22,11 @@ export const PHOTO_META_EXPORT_LABELS = {
   outward_damage_boxes_photo: 'Damage Boxes Photo',
 };
 
+/**
+ * WHAT: One GPS line for CSV export (lat, lng, optional accuracy in meters).
+ * WHY: Auditors need capture location next to each photo in spreadsheets.
+ * HOW: Validates numbers, formats to 5 decimals, appends ± accuracy when present.
+ */
 export function formatPhotoGpsForExport(lat, lng, accuracy) {
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
@@ -33,6 +38,11 @@ export function formatPhotoGpsForExport(lat, lng, accuracy) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}${acc}`;
 }
 
+/**
+ * WHAT: Turns JSON photo metadata into one human-readable export string.
+ * WHY: Inward/outward logs store many photos per row; CSV needs a single cell summary.
+ * HOW: Parses JSON, maps field keys to labels, joins time and GPS with " | ".
+ */
 export function formatPhotoCaptureMetadataForExport(raw) {
   if (!raw) return '';
   let meta = raw;

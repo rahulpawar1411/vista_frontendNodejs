@@ -8,6 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  ArrowLeft,
   Building2,
   CheckCircle,
   Database,
@@ -34,6 +35,7 @@ import { generateClientCode } from '../../utils/generateClientCode';
 import { generateWarehouseCode } from '../../utils/generateWarehouseCode';
 import './MasterDataPanel.css';
 
+/** WHAT: Active/Inactive pill for a master row. WHY/HOW: Inactive rows stay in DB but hide from dropdowns. */
 function StatusBadge({ active }) {
   const isActive = Number(active) !== 0;
   return (
@@ -47,6 +49,7 @@ function StatusBadge({ active }) {
   );
 }
 
+/** WHAT: Edit and activate/deactivate buttons on a warehouse or client row. WHY/HOW: Calls parent handlers; stops row click propagation. */
 function DirectoryActions({ isActive, onEdit, onToggle, editLabel, toggleBusy }) {
   return (
     <div className="mdm-row-actions" onClick={(e) => e.stopPropagation()}>
@@ -86,7 +89,12 @@ function DirectoryActions({ isActive, onEdit, onToggle, editLabel, toggleBusy })
   );
 }
 
-export default function MasterDataPanel() {
+/**
+ * WHAT: Super Admin UI to manage master warehouses and clients (codes, names, active flag).
+ * WHY: DO logs and assignments must use consistent warehouse/client master data.
+ * HOW: CRUD via fetchMasterWarehouses/Clients and create/update API helpers.
+ */
+export default function MasterDataPanel({ onBack }) {
   const [tab, setTab] = useState('warehouses');
   const [warehouses, setWarehouses] = useState([]);
   const [clients, setClients] = useState([]);
@@ -391,16 +399,33 @@ export default function MasterDataPanel() {
 
   return (
     <div className="sa-um mdm-panel">
-      <div className="sa-op-gmail">
-        <section className="sa-op-card">
+      <div className="sa-op-gmail sa-reg-op" data-ui="master-data-v2">
+        <div className="sa-reg-page-head">
+          {typeof onBack === 'function' ? (
+            <button
+              type="button"
+              className="sa-reg-back"
+              onClick={onBack}
+              title="Back to dashboard"
+              aria-label="Back"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          ) : null}
+          <div>
+            <h2 className="sa-op-title">Master Data</h2>
+            <p className="sa-op-sub">
+              Unique warehouse and client codes for dropdowns, DO scope, and exports. Inactive keeps history — no hard delete.
+            </p>
+          </div>
+        </div>
+
+        <section className="sa-op-card sa-reg-details-card">
           <div className="sa-op-card-head">
-            <div className="sa-op-card-icon"><Database size={14} /></div>
-            <div>
-              <h2 className="sa-op-title">Warehouse & Client Master</h2>
-              <p className="sa-op-sub">
-                Unique codes for dropdowns, DO scope, and exports. Inactive keeps history — no hard delete.
-              </p>
-            </div>
+            <div className="sa-op-card-icon"><Database size={16} /></div>
+            <h2 className="sa-op-title">
+              {tab === 'warehouses' ? 'Warehouse Details' : 'Client Details'}
+            </h2>
           </div>
 
           <div className="mdm-tabs">
@@ -431,7 +456,7 @@ export default function MasterDataPanel() {
                 />
                 Show inactive
               </label>
-              <button type="button" className="sa-op-btn-text" onClick={load} disabled={loading} title="Refresh">
+              <button type="button" className="sa-reg-btn-reset" onClick={load} disabled={loading} title="Refresh">
                 <RefreshCw size={13} className={loading ? 'spin' : ''} />
                 Refresh
               </button>
@@ -486,48 +511,65 @@ export default function MasterDataPanel() {
 
           {tab === 'warehouses' ? (
             <form className="sa-op-form" onSubmit={handleSaveWarehouse}>
-              <div className="sa-op-form-grid">
+              <div className="sa-op-form-grid cols-3">
                 {!editingWh ? (
                   <label className="sa-op-field">
                     <span>Warehouse Code</span>
-                    <input
-                      value={whCode}
-                      readOnly
-                      disabled
-                      placeholder="WH-PUNE-01"
-                      autoComplete="off"
-                    />
-                    <em>Auto from warehouse name (WH-PUNE-01, WH-PUNE-02…). Not editable.</em>
+                    <div className="sa-reg-input">
+                      <Database size={15} />
+                      <input
+                        className="sa-reg-readonly"
+                        value={whCode}
+                        readOnly
+                        disabled
+                        placeholder="WH-PUNE-01"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <em>Auto from warehouse name. Not editable.</em>
                   </label>
                 ) : (
                   <label className="sa-op-field">
                     <span>Warehouse Code</span>
-                    <input value={editingWh.warehouse_code || ''} readOnly disabled />
+                    <div className="sa-reg-input">
+                      <Database size={15} />
+                      <input className="sa-reg-readonly" value={editingWh.warehouse_code || ''} readOnly disabled />
+                    </div>
                     <em>Code cannot be changed after creation.</em>
                   </label>
                 )}
                 <label className="sa-op-field">
                   <span>Warehouse Name</span>
-                  <input
-                    value={whName}
-                    onChange={(e) => {
-                      whCodeManualRef.current = false;
-                      setWhName(e.target.value);
-                    }}
-                    placeholder="Pune"
-                    required
-                  />
+                  <div className="sa-reg-input">
+                    <Building2 size={15} />
+                    <input
+                      value={whName}
+                      onChange={(e) => {
+                        whCodeManualRef.current = false;
+                        setWhName(e.target.value);
+                      }}
+                      placeholder="Pune"
+                      required
+                    />
+                  </div>
                 </label>
                 <label className="sa-op-field">
                   <span>City</span>
-                  <input
-                    value={whCity}
-                    onChange={(e) => setWhCity(e.target.value)}
-                    placeholder="Pune"
-                  />
+                  <div className="sa-reg-input">
+                    <Building2 size={15} />
+                    <input
+                      value={whCity}
+                      onChange={(e) => setWhCity(e.target.value)}
+                      placeholder="Pune"
+                    />
+                  </div>
                 </label>
               </div>
               <div className="sa-op-form-actions">
+                <button type="button" className="sa-reg-btn-reset" onClick={resetWhForm}>
+                  <RefreshCw size={14} />
+                  Reset
+                </button>
                 {editingWh ? (
                   <button type="button" className="sa-op-btn-text" onClick={resetWhForm}>
                     Cancel
@@ -539,60 +581,81 @@ export default function MasterDataPanel() {
                       <Loader2 size={14} className="spinner-icon" />
                       Saving…
                     </>
-                  ) : (editingWh ? 'Update Warehouse' : 'Add Warehouse')}
+                  ) : (
+                    <>
+                      <Building2 size={14} />
+                      {editingWh ? 'Update Warehouse' : 'Add Warehouse'}
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           ) : (
             <form className="sa-op-form" onSubmit={handleSaveClient}>
-              <div className="sa-op-form-grid">
+              <div className="sa-op-form-grid cols-3">
                 {!editingCl ? (
                   <label className="sa-op-field">
                     <span>Client Code</span>
-                    <input
-                      value={clCode}
-                      onChange={(e) => {
-                        clCodeManualRef.current = true;
-                        setClCode(e.target.value.toUpperCase().replace(/\s+/g, '-'));
-                      }}
-                      placeholder="CL-WH-CLIENT"
-                      required
-                      autoComplete="off"
-                    />
-                    <em>Auto-generated from client + warehouse. Edit only if needed.</em>
+                    <div className="sa-reg-input">
+                      <Database size={15} />
+                      <input
+                        value={clCode}
+                        onChange={(e) => {
+                          clCodeManualRef.current = true;
+                          setClCode(e.target.value.toUpperCase().replace(/\s+/g, '-'));
+                        }}
+                        placeholder="CL-WH-CLIENT"
+                        required
+                        autoComplete="off"
+                      />
+                    </div>
+                    <em>Auto from client + warehouse. Edit only if needed.</em>
                   </label>
                 ) : (
                   <label className="sa-op-field">
                     <span>Client Code</span>
-                    <input value={editingCl.client_code || ''} readOnly disabled />
+                    <div className="sa-reg-input">
+                      <Database size={15} />
+                      <input className="sa-reg-readonly" value={editingCl.client_code || ''} readOnly disabled />
+                    </div>
                     <em>Code cannot be changed after creation.</em>
                   </label>
                 )}
                 <label className="sa-op-field">
                   <span>Client Name</span>
-                  <input
-                    value={clName}
-                    onChange={(e) => setClName(e.target.value)}
-                    placeholder="Amul Logistics"
-                    required
-                  />
+                  <div className="sa-reg-input">
+                    <Users size={15} />
+                    <input
+                      value={clName}
+                      onChange={(e) => setClName(e.target.value)}
+                      placeholder="Amul Logistics"
+                      required
+                    />
+                  </div>
                 </label>
-                <label className="sa-op-field sa-op-field-wide">
+                <label className="sa-op-field">
                   <span>Linked Warehouse</span>
-                  <select value={clWarehouse} onChange={(e) => setClWarehouse(e.target.value)}>
-                    <option value="">No warehouse (global client)</option>
-                    {activeWarehouses.map((w) => (
-                      <option key={w.id} value={w.warehouse_code}>
-                        {formatMasterLabel(w.warehouse_code, w.warehouse_name)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="sa-reg-input">
+                    <Building2 size={15} />
+                    <select value={clWarehouse} onChange={(e) => setClWarehouse(e.target.value)}>
+                      <option value="">No warehouse (global client)</option>
+                      {activeWarehouses.map((w) => (
+                        <option key={w.id} value={w.warehouse_code}>
+                          {formatMasterLabel(w.warehouse_code, w.warehouse_name)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   {activeWarehouses.length === 0 ? (
                     <em>Add a warehouse first to link clients by location.</em>
                   ) : null}
                 </label>
               </div>
               <div className="sa-op-form-actions">
+                <button type="button" className="sa-reg-btn-reset" onClick={resetClForm}>
+                  <RefreshCw size={14} />
+                  Reset
+                </button>
                 {editingCl ? (
                   <button type="button" className="sa-op-btn-text" onClick={resetClForm}>
                     Cancel
@@ -604,7 +667,12 @@ export default function MasterDataPanel() {
                       <Loader2 size={14} className="spinner-icon" />
                       Saving…
                     </>
-                  ) : (editingCl ? 'Update Client' : 'Add Client')}
+                  ) : (
+                    <>
+                      <Users size={14} />
+                      {editingCl ? 'Update Client' : 'Add Client'}
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -616,21 +684,26 @@ export default function MasterDataPanel() {
           </p>
         </section>
 
-        <section className="sa-op-card sa-op-directory">
-          <div className="sa-op-dir-toolbar">
-            <div>
-              <h2 className="sa-op-title">
-                {tab === 'warehouses' ? 'Warehouse Directory' : 'Client Directory'}
-              </h2>
-              <p className="sa-op-sub">
-                {tab === 'warehouses'
-                  ? `${filteredWarehouses.length} warehouse${filteredWarehouses.length === 1 ? '' : 's'} in directory`
-                  : `${filteredClients.length} client${filteredClients.length === 1 ? '' : 's'} in directory`}
-              </p>
+        <section className="sa-op-card sa-op-directory sa-reg-dir-card">
+          <div className="sa-reg-dir-head">
+            <div className="sa-reg-dir-title">
+              <div className="sa-op-card-icon">
+                {tab === 'warehouses' ? <Building2 size={16} /> : <Users size={16} />}
+              </div>
+              <div>
+                <h2 className="sa-op-title">
+                  {tab === 'warehouses' ? 'Warehouse Directory' : 'Client Directory'}
+                </h2>
+                <p className="sa-op-sub">
+                  {tab === 'warehouses'
+                    ? `${filteredWarehouses.length} warehouse${filteredWarehouses.length === 1 ? '' : 's'}`
+                    : `${filteredClients.length} client${filteredClients.length === 1 ? '' : 's'}`}
+                </p>
+              </div>
             </div>
             <div className="sa-op-dir-tools">
-              <label className="sa-op-search">
-                <Search size={14} />
+              <label className="sa-op-search sa-reg-search">
+                <Search size={15} />
                 <input
                   type="search"
                   placeholder={tab === 'warehouses' ? 'Search code, name or city…' : 'Search code, name or warehouse…'}

@@ -2,9 +2,9 @@ import React from 'react';
 import './PaginationBar.css';
 
 /**
- * Shared pagination UI — same locked format/style everywhere.
- * Showing <from> to <to> of <total> {itemLabel}  |  Previous · pages · Next
- * Styles are intentionally locked in PaginationBar.css (px fonts).
+ * WHAT: Previous / page numbers / Next bar for long server-paginated lists.
+ * WHY: Every monitor screen should paginate the same way for consistency.
+ * HOW: Computes from–to range from page, pageSize, and totalItems; calls onPageChange.
  */
 export default function PaginationBar({
   page,

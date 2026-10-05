@@ -1,5 +1,10 @@
-/** Chamber inspection task status for a Data Operator (Morning / Evening per client). */
+/**
+ * WHAT: Helpers to score DO daily inspection tasks (Morning/Evening per client assignment).
+ * WHY: Super Admin dashboard shows completed, pending, and overdue chamber readings.
+ * HOW: Match logs to assignments by date, shift, client, and chamber; count gaps.
+ */
 
+/** WHAT: YYYY-MM-DD for a Date in local timezone. WHY/HOW: Consistent date keys across task math. */
 export const localDateStr = (d = new Date()) => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -7,6 +12,7 @@ export const localDateStr = (d = new Date()) => {
   return `${y}-${m}-${day}`;
 };
 
+/** WHAT: Normalized date string from a log row (handles DD-MM-YYYY or ISO). WHY/HOW: Used to match tasks to calendar days. */
 export const logDateKey = (log) => {
   const raw = log?.formatted_date ?? log?.entry_date ?? log?.date ?? '';
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
@@ -23,6 +29,7 @@ export const logDateKey = (log) => {
   return s.slice(0, 10);
 };
 
+/** WHAT: Morning or Evening for a chamber log. WHY/HOW: Reads shift field or infers from inspection_time. */
 export const resolveLogShift = (log) => {
   const s = String(log?.shift || '').trim();
   if (/^morning$/i.test(s)) return 'Morning';
@@ -43,13 +50,21 @@ export const resolveLogShift = (log) => {
 const namesMatch = (a, b) =>
   String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 
-/** Only numbered masters like "Chamber 3" — not custom names such as "C1". */
+/**
+ * WHAT: Extracts chamber number from names like "Chamber 3".
+ * WHY: Assignments and logs may reference by number instead of database id.
+ * HOW: Regex ^Chamber\s+(\d+)$ only — custom names return null.
+ */
 export const chamberNumberFromName = (name) => {
   const m = String(name || '').match(/^Chamber\s+(\d+)$/i);
   return m ? parseInt(m[1], 10) : null;
 };
 
-/** Chambers this operator actually uses (from warehouse assignments only — no global placeholders). */
+/**
+ * WHAT: Chamber rows shown for one DO (from assignments + warehouse-owned chambers).
+ * WHY: Task UI must not show chambers the operator does not use.
+ * HOW: Merges assignment chamber_ids with warehouse_name match; sorts by chamber number.
+ */
 export function getOperatorDisplayChambers(allChambers, mappings, chamberLimit, warehouseName = '') {
   const limit = Number(chamberLimit) || 4;
   const rows = Array.isArray(allChambers) ? allChambers : [];
@@ -115,6 +130,7 @@ export function getOperatorDisplayChambers(allChambers, mappings, chamberLimit, 
   });
 }
 
+/** WHAT: True if assignment row refers to the same chamber as display chamber object. WHY/HOW: Matches by id or chamber number/name. */
 export function assignmentMatchesDisplayChamber(assignment, chamber) {
   if (!assignment || !chamber) return false;
   if (Number(assignment.chamber_id) === Number(chamber.id)) return true;
@@ -132,6 +148,7 @@ const assignmentChamberNum = (assignment) => {
   return Number.isFinite(id) ? id : null;
 };
 
+/** WHAT: True when a chamber log belongs to an assignment (client + chamber). WHY/HOW: Used when finding task completion. */
 export const logMatchesAssignment = (log, assignment) => {
   if (!log || !assignment) return false;
   if (!namesMatch(log.client_name, assignment.client_name)) return false;
@@ -159,6 +176,7 @@ export const logMatchesAssignment = (log, assignment) => {
   return false;
 };
 
+/** WHAT: List of YYYY-MM-DD strings for each day in inclusive range. WHY/HOW: Builds expected task slots per day. */
 export function enumerateDateKeys(fromDate, toDate) {
   const out = [];
   const from = new Date(`${fromDate}T12:00:00`);
@@ -172,6 +190,11 @@ export function enumerateDateKeys(fromDate, toDate) {
   return out;
 }
 
+/**
+ * WHAT: Active client–chamber assignment rows for one operator (deduped).
+ * WHY: Task counts only apply to clients currently assigned in their warehouse.
+ * HOW: Skips inactive rows and chambers above chamberLimit.
+ */
 export function getActiveOperatorAssignments(mappings, chamberLimit) {
   const limit = Number(chamberLimit) || 4;
   const seen = new Set();
@@ -191,6 +214,7 @@ export function getActiveOperatorAssignments(mappings, chamberLimit) {
   return out;
 }
 
+/** WHAT: Default from/to dates for operator task widget (last N days). WHY/HOW: Ends today; starts days-1 ago. */
 export function getDefaultOpTaskRange(days = 7) {
   const to = new Date();
   const from = new Date();
@@ -198,6 +222,7 @@ export function getDefaultOpTaskRange(days = 7) {
   return { fromDate: localDateStr(from), toDate: localDateStr(to) };
 };
 
+/** WHAT: First log that satisfies date, assignment, and shift. WHY/HOW: Marks one task slot as completed. */
 export function findMatchingTaskLog(logs, assignment, dateKey, shift) {
   return (logs || []).find(
     (l) =>
@@ -207,6 +232,11 @@ export function findMatchingTaskLog(logs, assignment, dateKey, shift) {
   );
 }
 
+/**
+ * WHAT: Summary counts and list of task items (completed/pending/overdue) for a date range.
+ * WHY: Super Admin DO profile and dashboard show compliance at a glance.
+ * HOW: For each day × assignment × Morning/Evening, find log or mark missing/overdue.
+ */
 export function computeDoTaskStatus({
   assignments,
   logs,

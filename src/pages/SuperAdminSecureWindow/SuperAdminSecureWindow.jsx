@@ -1,7 +1,16 @@
 // ====================================================================
-// Super Admin Secure Window Component (src/pages/SuperAdminSecureWindow/SuperAdminSecureWindow.jsx)
-// Paired with: src/pages/SuperAdminSecureWindow/SuperAdminSecureWindow.css
-// Strictly accessible by role: 'super_admin' only.
+// Super Admin Secure Window (SuperAdminSecureWindow.jsx + .css)
+// --------------------------------------------------------------------
+// OVERVIEW (beginner):
+//   WHAT: Full web console for Super Admin — dashboard, DOs, customers, logs, exports.
+//   WHY:  One place to approve edits, manage master data, and audit cold-chain records.
+//   HOW:  Sidebar sets activeMenu; each menu loads data via services/api.js; large tables paginate.
+//
+// Major menus (activeMenu): dashboard | data_operators | customers | master_data |
+//   customer_reports | activity_logs | history_logs | profile_lookup | inventory_log |
+//   daily_box_tracker | super_admin_profile
+//
+// Role: super_admin only (App.jsx routes here after login).
 // ====================================================================
 
 import React, { useState, useEffect, useMemo, Suspense, lazy, useRef } from 'react';
@@ -11,7 +20,8 @@ import {
   Thermometer, Trash2, Edit, UserPlus, ShieldAlert,
   Menu, X, ChevronRight, User, Eye, EyeOff, Activity, Search, Download, History, LayoutDashboard,
   Copy, Check, Loader2, CheckCircle, ClipboardCheck, MessageSquareWarning, MessageSquare, Smartphone, Package, Users, LayoutGrid,
-  ChevronDown, ChevronUp, Plus, ArrowLeft, Undo2
+  ChevronDown, ChevronUp, Plus, ArrowLeft, Undo2, Mail, Home, RefreshCw, FileText, MoreVertical,
+  Phone, ArrowDownLeft, ArrowUpRight, CheckCircle2, Sun, Moon, MapPin, UserX
 } from 'lucide-react';
 import Logo from '../../components/Logo/Logo';
 import PaginationBar from '../../components/PaginationBar/PaginationBar';
@@ -50,6 +60,7 @@ import {
   confirmExportSize,
   downloadCsv,
   toCsvContent,
+  excelRatioText,
   formatExportProgress,
   getExportErrorMessage,
   isRetryableExportError
@@ -63,6 +74,8 @@ import PhotoGpsLink from '../../components/PhotoGpsLink/PhotoGpsLink';
 import PhotoCaptureMetaPanel from '../../components/PhotoCaptureMetaPanel/PhotoCaptureMetaPanel';
 import { resolveMediaSrc as toMediaSrc } from '../../utils/resolveMediaSrc';
 import LoadErrorBanner from '../../components/LoadErrorBanner/LoadErrorBanner';
+import { USE_NEW_SA_DASHBOARD } from './dashboard/saDashboardUi';
+import SaDashboardControlCenter from './dashboard/SaDashboardControlCenter';
 import {
   computeDoTaskStatus,
   getActiveOperatorAssignments,
@@ -70,10 +83,12 @@ import {
   getOperatorDisplayChambers,
   assignmentMatchesDisplayChamber,
   chamberNumberFromName as strictChamberNumberFromName,
-  localDateStr
+  localDateStr,
+  enumerateDateKeys
 } from '../../utils/doTaskStatus';
 import '../../components/DOSidebar/DOSidebar.css';
 import './SuperAdminSecureWindow.css';
+import './DoProfileControlCenter.css';
 
 const TempMonitor = lazy(() => import('../TempMonitor/TempMonitor'));
 const InwardMonitor = lazy(() => import('../InwardMonitor/InwardMonitor'));
@@ -103,9 +118,11 @@ const highlightAddedDeletedWords = (text, extraNodes = null) => {
 
 const chamberNumberFromName = strictChamberNumberFromName;
 
+/** WHAT: True when chamber–client assignment row is marked inactive. WHY/HOW: Filters mapping lists and dedupe logic. */
 const isDeactiveAssignment = (row) =>
   String(row?.status || 'active').trim().toLowerCase() === 'inactive';
 
+/** WHAT: Stable string key for chamber + client pair. WHY/HOW: Deduplicates assignment rows in UI. */
 const assignmentClientKey = (row) =>
   `${row?.chamber_id ?? ''}|${String(row?.client_name || '').trim().toLowerCase()}`;
 
@@ -549,8 +566,16 @@ const renderMasterActivityStructured = (act, { compact = false } = {}) => {
   );
 };
 
+/**
+ * WHAT: Root Super Admin layout — sidebar, main viewport, modals, inline DO monitors.
+ * WHY: Centralizes CRM, permissions, logs, and operator management for cold-chain ops.
+ * HOW: activeMenu switches sections; useEffects load the right API data per menu (see ~3211).
+ *      State groups below: navigation, operators/DO profile, activity/history logs, customers,
+ *      permissions, inventory/box tracker, exports, and profile/password.
+ */
 export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate }) {
   const [time, setTime] = useState(new Date());
+  // // Navigation & shell
   const [activeMenu, setActiveMenu] = useState(() => {
     const saved = localStorage.getItem('super_admin_active_menu');
     if (saved === 'user_management') {
@@ -640,6 +665,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [opMasterAppliedFrom, setOpMasterAppliedFrom] = useState('');
   const [opMasterAppliedTo, setOpMasterAppliedTo] = useState('');
   const [opMasterEditMode, setOpMasterEditMode] = useState(false);
+  const [opMasterEditChamberKey, setOpMasterEditChamberKey] = useState(null);
   const [opMasterSessionChanges, setOpMasterSessionChanges] = useState([]);
   const [opMasterDonePopup, setOpMasterDonePopup] = useState(null);
   const [denyPermissionModal, setDenyPermissionModal] = useState({
@@ -663,13 +689,18 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [opTaskFromDate, setOpTaskFromDate] = useState('');
   const [opTaskToDate, setOpTaskToDate] = useState('');
   const [opTaskListPage, setOpTaskListPage] = useState(1);
+  const [opTimelinePage, setOpTimelinePage] = useState(1);
   const [opTaskAppliedFrom, setOpTaskAppliedFrom] = useState('');
   const [opTaskAppliedTo, setOpTaskAppliedTo] = useState('');
   const [opTaskLogs, setOpTaskLogs] = useState([]);
   const [opTaskLogsLoading, setOpTaskLogsLoading] = useState(false);
   const [opTaskLogsError, setOpTaskLogsError] = useState('');
+  const [opIoByDate, setOpIoByDate] = useState({});
   const [opTaskFilter, setOpTaskFilter] = useState('all');
   const [opTaskChamberFilter, setOpTaskChamberFilter] = useState('all');
+  const [opMapSearch, setOpMapSearch] = useState('');
+  const [opMapChamberFilter, setOpMapChamberFilter] = useState('all');
+  const [opMapExpanded, setOpMapExpanded] = useState({});
   const [opEmail, setOpEmail] = useState('');
   const [opPassword, setOpPassword] = useState('');
   const [opFullName, setOpFullName] = useState('');
@@ -677,6 +708,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [opWarehouseName, setOpWarehouseName] = useState('');
   const [opWarehouseSuggestOpen, setOpWarehouseSuggestOpen] = useState(false);
   const [opChamberLimit, setOpChamberLimit] = useState(4);
+  const [opAssignedChambers, setOpAssignedChambers] = useState(4);
+  const [opNotes, setOpNotes] = useState('');
+  const [opDirMenuId, setOpDirMenuId] = useState(null);
+  const [subAdminNotes, setSubAdminNotes] = useState('');
+  const [custDirMenuId, setCustDirMenuId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
@@ -709,8 +745,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [showAppSubPassword, setShowAppSubPassword] = useState(false);
   const [editingOp, setEditingOp] = useState(null);
   const [viewingOperator, setViewingOperator] = useState(null);
-  /** DO profile sections: task_status | mappings | master_activity */
-  const [opProfileSection, setOpProfileSection] = useState('task_status');
+  /** DO profile sections: overview | task_status | mappings | master_activity */
+  const [opProfileSection, setOpProfileSection] = useState('overview');
   const [opError, setOpError] = useState('');
   const [opSuccess, setOpSuccess] = useState('');
   const [savingOp, setSavingOp] = useState(false);
@@ -761,17 +797,20 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [detailType, setDetailType] = useState('');
   const [recordAllowHistory, setRecordAllowHistory] = useState([]);
   const [loadingAllowHistory, setLoadingAllowHistory] = useState(false);
+  /** Photo Preview modal: image URL, zoom level (1–5), drag-to-pan when zoomed. */
   const [lightboxImg, setLightboxImg] = useState(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
   const [lightboxPanning, setLightboxPanning] = useState(false);
   const lightboxBodyRef = useRef(null);
   const lightboxDragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
 
+  // New photo → reset zoom so each preview starts at 100%.
   useEffect(() => {
     setLightboxZoom(1);
     setLightboxPanning(false);
   }, [lightboxImg]);
 
+  // Ctrl+scroll (or Cmd+scroll) zooms image inside fixed frame; passive:false blocks browser page zoom.
   useEffect(() => {
     const el = lightboxBodyRef.current;
     if (!el || !lightboxImg) return undefined;
@@ -786,6 +825,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     return () => el.removeEventListener('wheel', onWheel);
   }, [lightboxImg]);
 
+  /** Start drag-pan on the scrollable preview area (only when image is zoomed in). */
   const onLightboxPointerDown = (e) => {
     if (lightboxZoom <= 1) return;
     const el = lightboxBodyRef.current;
@@ -806,6 +846,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   };
 
+  /** While dragging, move scroll position opposite to pointer so image follows the hand. */
   const onLightboxPointerMove = (e) => {
     const drag = lightboxDragRef.current;
     if (!drag.active) return;
@@ -815,6 +856,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     el.scrollTop = drag.top - (e.clientY - drag.y);
   };
 
+  /** End drag-pan and release pointer capture. */
   const onLightboxPointerUp = (e) => {
     if (!lightboxDragRef.current.active) return;
     lightboxDragRef.current.active = false;
@@ -1334,7 +1376,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [doTaskError, setDoTaskError] = useState('');
   const [doTaskFilter, setDoTaskFilter] = useState('all');
   const [doTaskSearch, setDoTaskSearch] = useState('');
-  const [doTaskDate, setDoTaskDate] = useState(() => localDateStr());
+  const [doTaskFromDate, setDoTaskFromDate] = useState(() => getDefaultOpTaskRange(7).fromDate);
+  const [doTaskToDate, setDoTaskToDate] = useState(() => getDefaultOpTaskRange(7).toDate);
 
   // Inventory Log States
   const [inventoryLogs, setInventoryLogs] = useState([]);
@@ -1347,7 +1390,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [breakdownCurrentPage, setBreakdownCurrentPage] = useState(1);
   const [breakdownPerPage] = useState(15);
 
-  // Daily Box Tracker — live warehouse → client cascading filters (from DB)
+  /**
+   * Daily Box Tracker (Super Admin menu: daily_box_tracker)
+   * - List: one row per client + warehouse (Left Now from physical audit or book balance)
+   * - Detail: day-wise Received / Dispatch / Left (API: getClientMonthBoxSheet)
+   * - Browser Back: pushState when opening detail so mouse back closes detail view
+   */
   const [inventoryFilterOptions, setInventoryFilterOptions] = useState({ warehouses: [], total_warehouses: 0, total_clients: 0 });
   const [dailyDeltas, setDailyDeltas] = useState([]);
   const [loadingDeltas, setLoadingDeltas] = useState(false);
@@ -1368,6 +1416,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const deltasViewClientRef = useRef(null);
   deltasViewClientRef.current = deltasViewClient;
 
+  /** Clears client day-detail view state (list view stays on Daily Box Tracker). */
   const resetClientMonthSheetState = () => {
     setDeltasViewClient(null);
     setClientMonthSheet(null);
@@ -1378,9 +1427,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setMonthSheetPage(1);
   };
 
+  /**
+   * Close day-detail and return to client list.
+   * Uses history.back() when we pushed a state on open, so browser Back button works the same as UI Back.
+   */
   const closeClientMonthSheet = (opts = {}) => {
     const fromPopstate = !!opts?.fromPopstate;
-    // Prefer history.back() so mouse Back and UI Back share one path
     if (!fromPopstate && boxDayHistoryRef.current) {
       try {
         window.history.back();
@@ -1393,6 +1445,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     resetClientMonthSheetState();
   };
 
+  /**
+   * Open day-wise Received/Dispatch/Left for one client row.
+   * Fetches /dashboard/client-month-box-sheet and pushes browser history for Back support.
+   */
   const openClientMonthSheet = async (row, rangeOverride) => {
     if (!row?.client_name) return;
     const defaults = getDefaultOpTaskRange(30);
@@ -1447,6 +1503,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   };
 
+  // Browser Back / mouse back: close detail when user pops our pushState entry.
   useEffect(() => {
     const onPopState = () => {
       if (!boxDayHistoryRef.current && !deltasViewClientRef.current) return;
@@ -1457,10 +1514,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  // User switched SA menu away from Daily Box Tracker — clear detail without extra history.back().
   useEffect(() => {
     if (activeMenu === 'daily_box_tracker') return;
     if (!boxDayHistoryRef.current && !deltasViewClientRef.current) return;
-    // Leaving Daily Box Tracker: drop detail without history.back()
     boxDayHistoryRef.current = false;
     resetClientMonthSheetState();
     try {
@@ -1474,6 +1531,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   }, [activeMenu]);
 
+  /** Loads warehouse/client filter options + reconciliation rows for the tracker table. */
   const loadDailyBoxTrackerData = async (warehouseOverride) => {
     const warehouse = warehouseOverride !== undefined ? warehouseOverride : deltasWarehouseFilter;
     setLoadingDeltas(true);
@@ -1817,6 +1875,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       }
     }
     setOpMasterEditMode(false);
+    setOpMasterEditChamberKey(null);
     setOpMappingsError('');
     setOpMappingsSuccess('');
     setOpMasterDonePopup({
@@ -1836,6 +1895,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
   const cancelOpMasterEdit = () => {
     setOpMasterEditMode(false);
+    setOpMasterEditChamberKey(null);
     setOpMasterSessionChanges([]);
     setOpMappingsError('');
     setOpMappingsSuccess('');
@@ -2026,6 +2086,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     if (!op?.warehouse_name) {
       setOpTaskLogs([]);
       setOpTaskLogsError('');
+      setOpIoByDate({});
       return;
     }
     const from = toApiDateParam(fromDate);
@@ -2041,6 +2102,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpTaskLogsLoading(true);
     setOpTaskLogsError('');
     try {
+      const ioPromise = op.email
+        ? fetchDoOperatorIoCounts(op.email, { fromDate: from, toDate: to }).catch((err) => {
+            console.warn('DO day-wise IO counts failed:', err.message || err);
+            return null;
+          })
+        : Promise.resolve(null);
+
       let { items: rawItems = [] } = await fetchAllLogPages('/chamber-temp', {
         fromDate: from,
         toDate: to,
@@ -2063,8 +2131,30 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         (log) => targetEmail && normalizeEmail(log.operator_email) === targetEmail
       );
       setOpTaskLogs(emailMatched.length > 0 ? emailMatched : rawItems);
+
+      const ioCounts = await ioPromise;
+      if (ioCounts?.by_date && typeof ioCounts.by_date === 'object') {
+        setOpIoByDate(ioCounts.by_date);
+      } else {
+        setOpIoByDate({});
+      }
+      if (ioCounts && op.email) {
+        setViewingOperator((prev) => {
+          if (!prev || normalizeEmail(prev.email) !== targetEmail) return prev;
+          return {
+            ...prev,
+            total_inward: Number(ioCounts.total_inward) || 0,
+            total_outward: Number(ioCounts.total_outward) || 0,
+            today_inward: Number(ioCounts.today_inward) || 0,
+            today_outward: Number(ioCounts.today_outward) || 0,
+            io_counts_loading: false,
+            io_counts_today: ioCounts.today || localDateStr()
+          };
+        });
+      }
     } catch (err) {
       setOpTaskLogs([]);
+      setOpIoByDate({});
       setOpTaskLogsError(err.message || 'Failed to load chamber task logs.');
     } finally {
       setOpTaskLogsLoading(false);
@@ -2090,6 +2180,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpTaskChamberFilter('all');
     loadOpTaskStatus(op, from, to);
     setOpTaskListPage(1);
+    setOpTimelinePage(1);
   };
 
   const handleToggleOpMappings = async (op) => {
@@ -3076,17 +3167,36 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   };
 
-  const loadDoTaskOverview = async (dateOverride) => {
+  const loadDoTaskOverview = async (rangeOverride) => {
     setLoadingDoTasks(true);
     setDoTaskError('');
     try {
-      const date =
-        toApiDateParam(dateOverride !== undefined ? dateOverride : doTaskDate) ||
-        localDateStr();
-      const data = await fetchDoTaskOverview({ date });
-      if (data?.today && data.today !== date) {
+      let from =
+        toApiDateParam(
+          rangeOverride?.fromDate !== undefined ? rangeOverride.fromDate : doTaskFromDate
+        ) || localDateStr();
+      let to =
+        toApiDateParam(
+          rangeOverride?.toDate !== undefined ? rangeOverride.toDate : doTaskToDate
+        ) || from;
+      // Back-compat: single date string/arg still works
+      if (typeof rangeOverride === 'string') {
+        from = toApiDateParam(rangeOverride) || localDateStr();
+        to = from;
+      }
+      if (from > to) {
+        const tmp = from;
+        from = to;
+        to = tmp;
+      }
+      setDoTaskFromDate(from);
+      setDoTaskToDate(to);
+      const data = await fetchDoTaskOverview({ fromDate: from, toDate: to });
+      const respFrom = toApiDateParam(data?.fromDate) || from;
+      const respTo = toApiDateParam(data?.toDate) || to;
+      if (respFrom !== from || respTo !== to) {
         setDoTaskError(
-          `Server returned ${data.today} instead of ${date}. Restart backend to enable date filter.`
+          `Server returned ${respFrom} → ${respTo} instead of ${from} → ${to}. Restart backend to enable date range.`
         );
       }
       const nextOperators = Array.isArray(data?.operators)
@@ -3103,10 +3213,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         total_inward: Number(data?.summary?.total_inward) || 0,
         total_outward: Number(data?.summary?.total_outward) || 0,
         today_inward: Number(data?.summary?.today_inward) || 0,
-        today_outward: Number(data?.summary?.today_outward) || 0
+        today_outward: Number(data?.summary?.today_outward) || 0,
+        range_inward: Number(data?.summary?.range_inward ?? data?.summary?.today_inward) || 0,
+        range_outward: Number(data?.summary?.range_outward ?? data?.summary?.today_outward) || 0
       };
       setDoTaskOverview(data ? { ...data, summary, operators: nextOperators } : null);
-      if (data?.today) setDoTaskDate(data.today);
+      if (respFrom) setDoTaskFromDate(respFrom);
+      if (respTo) setDoTaskToDate(respTo);
     } catch (err) {
       console.error('Error loading DO daily tasks:', err);
       setDoTaskError(err.message || 'Failed to load DO daily tasks.');
@@ -3187,6 +3300,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   };
 
+  // Menu-driven data loading — fetch the datasets each sidebar section needs
   useEffect(() => {
     if (activeMenu === 'dashboard') {
       loadOperatorsData();
@@ -3371,6 +3485,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     else if (key === 'security') handleExportSecurityExcel();
     else if (key === 'system') handleExportSystemExcel();
     else if (key === 'operators') handleExportOperatorsDirectory();
+    else if (key === 'customers') handleExportCustomersDirectory();
   };
 
   const handleExportActivitiesExcel = async () => {
@@ -4183,6 +4298,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpPhoneNo(toLocalTenDigitPhone(op.phone_no));
     setOpWarehouseName(op.warehouse_name || '');
     setOpChamberLimit(op.chamber_limit || 4);
+    setOpAssignedChambers(op.chamber_limit || 4);
+    setOpNotes('');
+    setOpDirMenuId(null);
     setOpPassword(''); // Leave blank unless updating
     setOpError('');
     setOpSuccess('');
@@ -4203,14 +4321,18 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       today_outward: Number(op.today_outward ?? fromTasks?.today_outward) || 0,
       io_counts_loading: true
     });
-    setOpProfileSection('task_status');
+    setOpProfileSection('overview');
     setExpandedOpMappingsId(null);
+    setOpMapSearch('');
+    setOpMapChamberFilter('all');
+    setOpMapExpanded({});
     setOpMappingsError('');
     setOpMappingsSuccess('');
     setOpMasterActivitiesError('');
     setOpMasterActivityFilter('all');
     setOpMasterActivityPage(1);
     setOpMasterEditMode(false);
+    setOpMasterEditChamberKey(null);
     setOpMasterSessionChanges([]);
     setOpMasterDonePopup(null);
     setNewClientInputs({});
@@ -4232,12 +4354,17 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpTaskFilter('all');
     setOpTaskChamberFilter('all');
     setOpTaskListPage(1);
+    setOpTimelinePage(1);
     setOpTaskLogs([]);
     setOpTaskLogsError('');
+    setOpIoByDate({});
 
     const loadIoCounts = (async () => {
       try {
-        const counts = await fetchDoOperatorIoCounts(op.email);
+        const counts = await fetchDoOperatorIoCounts(op.email, {
+          fromDate,
+          toDate
+        });
         setViewingOperator((prev) => {
           if (!prev || String(prev.email || '').toLowerCase() !== emailKey) return prev;
           return {
@@ -4250,6 +4377,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             io_counts_today: counts.today || localDateStr()
           };
         });
+        if (counts?.by_date && typeof counts.by_date === 'object') {
+          setOpIoByDate(counts.by_date);
+        }
       } catch (err) {
         console.warn('DO profile IO counts failed:', err.message || err);
         setViewingOperator((prev) => {
@@ -4350,7 +4480,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       finalizePendingMasterDelete();
     }
     setViewingOperator(null);
-    setOpProfileSection('task_status');
+    setOpProfileSection('overview');
     setOpMappings([]);
     setOpMappingsError('');
     setOpMappingsSuccess('');
@@ -4359,6 +4489,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpMasterActivityFilter('all');
     setOpMasterActivityPage(1);
     setOpMasterEditMode(false);
+    setOpMasterEditChamberKey(null);
     setOpMasterSessionChanges([]);
     setOpMasterDonePopup(null);
     setNewClientInputs({});
@@ -4376,8 +4507,29 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpTaskAppliedTo('');
     setOpTaskLogs([]);
     setOpTaskLogsError('');
+    setOpIoByDate({});
     setOpTaskFilter('all');
     setOpTaskChamberFilter('all');
+    setOpMapSearch('');
+    setOpMapChamberFilter('all');
+    setOpMapExpanded({});
+  };
+
+  const resetOperatorForm = () => {
+    if (editingOp) {
+      startEditOperator(editingOp);
+      return;
+    }
+    cancelEditOperator();
+  };
+
+  /** Register/list screen — closes DO profile so the form is visible (not task-status profile). */
+  const openDataOperatorsHome = () => {
+    setViewingOperator(null);
+    setEditingOp(null);
+    setOpError('');
+    setOpSuccess('');
+    setActiveMenu('data_operators');
   };
 
   const cancelEditOperator = () => {
@@ -4388,6 +4540,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setOpWarehouseName('');
     setOpWarehouseSuggestOpen(false);
     setOpChamberLimit(4);
+    setOpAssignedChambers(4);
+    setOpNotes('');
+    setOpDirMenuId(null);
     setOpPassword('');
     setShowPassword(false);
     setOpError('');
@@ -4752,12 +4907,79 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }, 30000);
   };
 
+  const resetSubAdminForm = () => {
+    if (editingSubAdmin) {
+      startEditSubAdmin(editingSubAdmin);
+      return;
+    }
+    setSubAdminEmail('');
+    setSubAdminFullName('');
+    setSubAdminPhoneNo('');
+    setSubAdminPassword('');
+    setSubAdminSelectedClients([]);
+    setSubAdminSelectedWarehouses([]);
+    setSubAdminNotes('');
+    setCustDirMenuId(null);
+    setShowPassword(false);
+    setSubAdminError('');
+    setSubAdminSuccess('');
+  };
+
+  const handleExportCustomersDirectory = () => {
+    setExportError(null);
+    try {
+      const term = (subAdminSearch || '').toLowerCase().trim();
+      const list = (subAdmins || []).filter((sa) => {
+        if (!sa) return false;
+        if (!term) return true;
+        return (
+          (sa.full_name && sa.full_name.toLowerCase().includes(term)) ||
+          (sa.email && sa.email.toLowerCase().includes(term)) ||
+          (sa.phone_no && String(sa.phone_no).toLowerCase().includes(term)) ||
+          (sa.allowed_warehouses && String(sa.allowed_warehouses).toLowerCase().includes(term))
+        );
+      });
+      if (!confirmExportSize(list.length)) throw new Error('Export cancelled.');
+      let csvContent = '\uFEFF';
+      const headers = [
+        'Customer ID',
+        'Full Name',
+        'Phone No.',
+        'Email Address',
+        'Allowed Warehouses',
+        'Allowed Clients',
+        'Registration Date'
+      ];
+      csvContent += headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+      list.forEach((sa) => {
+        const registered = sa.created_at
+          ? new Date(sa.created_at).toLocaleDateString('en-GB')
+          : '-';
+        const row = [
+          sa.id ?? '-',
+          sa.full_name || '-',
+          sa.phone_no ? formatIndiaPhoneDisplay(sa.phone_no) : '-',
+          sa.email || '-',
+          sa.allowed_warehouses || 'All warehouses',
+          sa.allowed_clients || 'All products',
+          registered
+        ];
+        csvContent += row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(',') + '\n';
+      });
+      downloadCsv(`Customers_Directory_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+    } catch (err) {
+      setExportFailure(err, 'customers');
+    }
+  };
+
   const startEditSubAdmin = (sa) => {
     setEditingSubAdmin(sa);
     setSubAdminEmail(sa.email);
     setSubAdminFullName(sa.full_name || '');
     setSubAdminPhoneNo(toLocalTenDigitPhone(sa.phone_no));
     setSubAdminPassword('');
+    setSubAdminNotes('');
+    setCustDirMenuId(null);
     // Normalize client tokens to master client_name when possible
     const rawClients = sa.allowed_clients
       ? sa.allowed_clients.split(',').map((c) => c.trim()).filter(Boolean)
@@ -4801,6 +5023,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     setSubAdminPassword('');
     setSubAdminSelectedClients([]);
     setSubAdminSelectedWarehouses([]);
+    setSubAdminNotes('');
+    setCustDirMenuId(null);
     setShowPassword(false);
     setSubAdminError('');
     setSubAdminSuccess('');
@@ -5996,6 +6220,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           renderSaEditPanel()
         ) : (
           <>
+        {/* --- Menu: Super Admin Profile (email, password, mobile sub-admin registration) --- */}
         {activeMenu === 'super_admin_profile' && (
           <div className="sa-profile-window">
             <div className="sa-profile-window-top">
@@ -6420,7 +6645,39 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           </div>
         )}
 
-        {activeMenu === 'dashboard' && (
+        {/* --- Menu: Dashboard (stats, DO tasks, permission queue, quick actions) --- */}
+        {/* Undo new UI: set USE_NEW_SA_DASHBOARD = false in dashboard/saDashboardUi.js */}
+        {activeMenu === 'dashboard' && USE_NEW_SA_DASHBOARD ? (
+          <SaDashboardControlCenter
+            operators={operators}
+            warehousesList={warehousesList}
+            customers={subAdmins}
+            dashboardPendingRequests={dashboardPendingRequests}
+            hasPendingRequests={hasPendingRequests}
+            hasNewDOChanges={hasNewDOChanges}
+            doTaskOverview={doTaskOverview}
+            doTaskSummary={doTaskSummary}
+            doTaskRows={doTaskRows}
+            doTaskFromDate={doTaskFromDate}
+            setDoTaskFromDate={setDoTaskFromDate}
+            doTaskToDate={doTaskToDate}
+            setDoTaskToDate={setDoTaskToDate}
+            doTaskFilter={doTaskFilter}
+            setDoTaskFilter={setDoTaskFilter}
+            doTaskSearch={doTaskSearch}
+            setDoTaskSearch={setDoTaskSearch}
+            loadingDoTasks={loadingDoTasks}
+            doTaskError={doTaskError}
+            setDoTaskError={setDoTaskError}
+            loadDoTaskOverview={loadDoTaskOverview}
+            openDoFromDashboard={openDoFromDashboard}
+            openDataOperatorsHome={openDataOperatorsHome}
+            setActiveMenu={setActiveMenu}
+            setAuditSubTab={setAuditSubTab}
+            localDateStr={localDateStr}
+          />
+        ) : null}
+        {activeMenu === 'dashboard' && !USE_NEW_SA_DASHBOARD && (
           <div className="sa-op-gmail sa-dash">
             <section className="sa-op-card">
               <div className="sa-op-dir-toolbar">
@@ -6445,7 +6702,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <button
                   type="button"
                   className="sa-dash-stat"
-                  onClick={() => setActiveMenu('data_operators')}
+                  onClick={openDataOperatorsHome}
                 >
                   <span className="sa-dash-stat-top">
                     <em>Operators</em>
@@ -6505,7 +6762,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <button
                   type="button"
                   className="sa-dash-shortcut"
-                  onClick={() => setActiveMenu('data_operators')}
+                  onClick={openDataOperatorsHome}
                 >
                   <UserPlus size={14} />
                   <span>Register Operator</span>
@@ -6570,16 +6827,19 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <div className="sa-dash-task-titles">
                     <strong>DO tasks</strong>
                     <span>
-                      {doTaskOverview?.today
-                        ? new Date(`${doTaskOverview.today}T12:00:00`).toLocaleDateString('en-GB', {
-                            weekday: 'short',
+                      {(() => {
+                        const from = doTaskOverview?.fromDate || doTaskFromDate || localDateStr();
+                        const to = doTaskOverview?.toDate || doTaskToDate || from;
+                        const fmt = (ymd) =>
+                          new Date(`${ymd}T12:00:00`).toLocaleDateString('en-GB', {
                             day: 'numeric',
                             month: 'short',
                             year: 'numeric'
-                          })
-                        : doTaskDate === localDateStr()
-                          ? 'Today'
-                          : doTaskDate}
+                          });
+                        if (from === to && from === localDateStr()) return 'Today';
+                        if (from === to) return fmt(from);
+                        return `${fmt(from)} → ${fmt(to)}`;
+                      })()}
                       {' · Morning + Evening'}
                     </span>
                   </div>
@@ -6587,7 +6847,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <button
                   type="button"
                   className="sa-op-btn-text"
-                  onClick={() => loadDoTaskOverview(doTaskDate)}
+                  onClick={() =>
+                    loadDoTaskOverview({ fromDate: doTaskFromDate, toDate: doTaskToDate })
+                  }
                   disabled={loadingDoTasks}
                 >
                   {loadingDoTasks ? <Loader2 size={12} className="sa-spin" /> : null}
@@ -6596,29 +6858,56 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               </div>
 
               <div className="sa-dash-task-tools">
-                <label className="sa-dash-task-date-wrap" title="Filter by date">
+                <label className="sa-dash-task-date-wrap" title="From date">
                   <Calendar size={13} />
                   <input
                     className="sa-op-filter sa-dash-task-date"
                     type="date"
-                    value={doTaskDate}
+                    value={doTaskFromDate || ''}
+                    max={doTaskToDate || localDateStr()}
+                    onChange={(e) => {
+                      const val = e.target.value || localDateStr();
+                      setDoTaskFromDate(val);
+                      if (doTaskToDate && val > doTaskToDate) setDoTaskToDate(val);
+                    }}
+                    aria-label="DO tasks from date"
+                  />
+                </label>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>→</span>
+                <label className="sa-dash-task-date-wrap" title="To date">
+                  <input
+                    className="sa-op-filter sa-dash-task-date"
+                    type="date"
+                    value={doTaskToDate || ''}
+                    min={doTaskFromDate || undefined}
                     max={localDateStr()}
                     onChange={(e) => {
                       const val = e.target.value || localDateStr();
-                      setDoTaskDate(val);
-                      loadDoTaskOverview(val);
+                      setDoTaskToDate(val);
+                      if (doTaskFromDate && val < doTaskFromDate) setDoTaskFromDate(val);
                     }}
-                    aria-label="DO tasks date"
+                    aria-label="DO tasks to date"
                   />
                 </label>
-                {doTaskDate !== localDateStr() ? (
+                <button
+                  type="button"
+                  className="sa-dash-task-today-btn"
+                  onClick={() =>
+                    loadDoTaskOverview({ fromDate: doTaskFromDate, toDate: doTaskToDate })
+                  }
+                  disabled={loadingDoTasks || !doTaskFromDate || !doTaskToDate}
+                >
+                  Apply
+                </button>
+                {!(doTaskFromDate === localDateStr() && doTaskToDate === localDateStr()) ? (
                   <button
                     type="button"
                     className="sa-dash-task-today-btn"
                     onClick={() => {
                       const today = localDateStr();
-                      setDoTaskDate(today);
-                      loadDoTaskOverview(today);
+                      setDoTaskFromDate(today);
+                      setDoTaskToDate(today);
+                      loadDoTaskOverview({ fromDate: today, toDate: today });
                     }}
                     disabled={loadingDoTasks}
                   >
@@ -6683,12 +6972,24 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <span>Total Outward</span>
                   <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
                 </div>
-                <div className="sa-dash-task-metric inward-today" title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
-                  <span>{doTaskDate === localDateStr() ? 'Today Inward' : 'Day Inward'}</span>
+                <div className="sa-dash-task-metric inward-today" title={`Inward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'} (all DOs)`}>
+                  <span>
+                    {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
+                      ? 'Today Inward'
+                      : doTaskFromDate === doTaskToDate
+                        ? 'Day Inward'
+                        : 'Period Inward'}
+                  </span>
                   <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
                 </div>
-                <div className="sa-dash-task-metric outward-today" title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
-                  <span>{doTaskDate === localDateStr() ? 'Today Outward' : 'Day Outward'}</span>
+                <div className="sa-dash-task-metric outward-today" title={`Outward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'} (all DOs)`}>
+                  <span>
+                    {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
+                      ? 'Today Outward'
+                      : doTaskFromDate === doTaskToDate
+                        ? 'Day Outward'
+                        : 'Period Outward'}
+                  </span>
                   <strong>{Number(doTaskSummary.today_outward) || 0}</strong>
                 </div>
               </div>
@@ -6697,7 +6998,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div className="sa-op-banner-wrap">
                   <LoadErrorBanner
                     message={doTaskError}
-                    onRetry={() => loadDoTaskOverview(doTaskDate)}
+                    onRetry={() =>
+                      loadDoTaskOverview({ fromDate: doTaskFromDate, toDate: doTaskToDate })
+                    }
                     onDismiss={() => setDoTaskError('')}
                   />
                 </div>
@@ -6715,7 +7018,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div className="sa-dash-task-list">
                   {!(Number(doTaskSummary.morning_completed) || Number(doTaskSummary.evening_completed)) ? (
                     <div className="sa-dash-task-hint">
-                      No submissions on this date. Choose another day to see completed Morning / Evening counts.
+                      No submissions in this date range. Adjust From / To and Apply to see completed Morning / Evening counts.
                     </div>
                   ) : null}
                   <table className="sa-dash-task-table">
@@ -6727,11 +7030,19 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <th>Morning</th>
                         <th>Evening</th>
                         <th>Overdue</th>
-                        <th title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
-                          {doTaskDate === localDateStr() ? 'Today In' : 'Day In'}
+                        <th title={`Inward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'}`}>
+                          {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
+                            ? 'Today In'
+                            : doTaskFromDate === doTaskToDate
+                              ? 'Day In'
+                              : 'Period In'}
                         </th>
-                        <th title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
-                          {doTaskDate === localDateStr() ? 'Today Out' : 'Day Out'}
+                        <th title={`Outward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'}`}>
+                          {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
+                            ? 'Today Out'
+                            : doTaskFromDate === doTaskToDate
+                              ? 'Day Out'
+                              : 'Period Out'}
                         </th>
                       </tr>
                     </thead>
@@ -6749,7 +7060,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         const evePct = eveExp > 0 ? Math.min(100, Math.round((eveDone / eveExp) * 100)) : 0;
                         const inToday = Number(op.today_inward) || 0;
                         const outToday = Number(op.today_outward) || 0;
-                        const dayLabel = doTaskOverview?.today || doTaskDate || 'selected day';
+                        const dayLabel =
+                          doTaskFromDate === doTaskToDate
+                            ? doTaskFromDate || 'selected day'
+                            : `${doTaskFromDate || '—'} → ${doTaskToDate || '—'}`;
                         const tone =
                           overdue > 0
                             ? 'bad'
@@ -6943,6 +7257,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
 
 
+        {/* --- Menu: Inventory reconciliation (warehouse stock vs log deltas) --- */}
         {activeMenu === 'inventory_log' && (
           <div className="diagnostics-card" style={{ padding: '24px', backgroundColor: 'var(--surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
@@ -7414,7 +7729,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           </div>
         )}
 
+        {/* --- Menu: Daily Box Tracker (client month box in/out/left sheet) --- */}
         {activeMenu === 'daily_box_tracker' && (() => {
+          // --- Daily Box Tracker UI (filters, pie chart, client table, optional day detail) ---
           const liveWarehouses = inventoryFilterOptions.warehouses || [];
           const selectedWh = liveWarehouses.find(
             (w) => String(w.name).toLowerCase().trim() === String(deltasWarehouseFilter).toLowerCase().trim()
@@ -7424,7 +7741,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             ? Array.from(new Set(liveWarehouses.flatMap((w) => w.clients || []))).sort((a, b) => a.localeCompare(b))
             : (selectedWh?.clients || []);
 
-          /** Left now = Phys prefer else Book Bal (same as mobile Reports) */
+          /**
+           * "Left Now" column: use last physical chamber count if we have it,
+           * otherwise fall back to book balance (inward − outward).
+           */
           const leftNowOf = (row) => {
             if (row == null) return 0;
             if (row.physical_audit_count != null && row.physical_audit_count !== '') {
@@ -8090,6 +8410,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         })()}
 
 
+        {/* --- Menu: History logs (daily / inward / outward tables, export, delete) --- */}
         {activeMenu === 'history_logs' && (
           <div className={`sa-um sa-history sa-history--${historyTab}`}>
             <div className="sa-gmail-tabs sa-gmail-tabs-wrap">
@@ -8647,6 +8968,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           </div>
         )}
 
+        {/* --- Menu: Profile lookup (search by reference, detail modal, SA edit) --- */}
         {activeMenu === 'profile_lookup' && (
           <div className="sa-op-gmail sa-lookup">
             {searchedRecord ? (
@@ -9350,6 +9672,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           </div>
         )}
 
+        {/* --- Menu: Activity logs (DO actions, security audit, permission config) --- */}
         {activeMenu === 'activity_logs' && (
           <div className="sa-um sa-activity">
             <div className="sa-gmail-tabs sa-gmail-tabs-wrap">
@@ -10553,28 +10876,54 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           </div>
         )}
 
-        {activeMenu === 'master_data' && <MasterDataPanel />}
+        {/* --- Menu: Master data (warehouses + clients catalog) --- */}
+        {activeMenu === 'master_data' && (
+          <MasterDataPanel onBack={() => setActiveMenu('dashboard')} />
+        )}
 
+        {/* --- Menu: Customers (web/mobile customer accounts, access scope) --- */}
         {activeMenu === 'customers' && (
           <div className="sa-um">
-              <div className="sa-op-gmail">
-                <section className="sa-op-card">
-                  <div className="sa-op-card-head">
-                    <div className="sa-op-card-icon">{editingSubAdmin ? <Edit size={14} /> : <UserPlus size={14} />}</div>
-                    <div>
-                      <h2 className="sa-op-title">{editingSubAdmin ? 'Modify Customer Profile' : 'Register New Customer'}</h2>
-                      <p className="sa-op-sub">
-                        {editingSubAdmin
-                          ? editingSubAdmin.email
-                          : 'All fields are required. Registered credentials grant dashboard and inquiry access.'}
-                      </p>
-                    </div>
-                  </div>
+            <div className="sa-op-gmail sa-reg-op" data-ui="register-customer-v2">
+              <div className="sa-reg-page-head">
+                <button
+                  type="button"
+                  className="sa-reg-back"
+                  onClick={() => {
+                    if (editingSubAdmin) cancelEditSubAdmin();
+                    else setActiveMenu('dashboard');
+                  }}
+                  title={editingSubAdmin ? 'Cancel edit' : 'Back to dashboard'}
+                  aria-label="Back"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div>
+                  <h2 className="sa-op-title">
+                    {editingSubAdmin ? 'Modify Customer Profile' : 'Register New Customer'}
+                  </h2>
+                  <p className="sa-op-sub">
+                    {editingSubAdmin
+                      ? `Update ${editingSubAdmin.email || 'customer'} — warehouse and client access apply to their portal.`
+                      : 'Add a new customer to the ReeferON system. Registered credentials grant dashboard and inquiry access.'}
+                  </p>
+                </div>
+              </div>
 
-                  <form onSubmit={handleSaveSubAdmin} className="sa-op-form">
-                    <div className="sa-op-form-grid">
-                      <label className="sa-op-field">
-                        <span>Full Name</span>
+              <section className="sa-op-card sa-reg-details-card">
+                <div className="sa-op-card-head">
+                  <div className="sa-op-card-icon">
+                    <User size={16} />
+                  </div>
+                  <h2 className="sa-op-title">Customer Details</h2>
+                </div>
+
+                <form onSubmit={handleSaveSubAdmin} className="sa-op-form">
+                  <div className="sa-op-form-grid cols-3">
+                    <label className="sa-op-field">
+                      <span>Full Name</span>
+                      <div className="sa-reg-input">
+                        <User size={15} />
                         <input
                           type="text"
                           name="subadmin-full-name"
@@ -10585,10 +10934,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           onChange={(e) => setSubAdminFullName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
                           required
                         />
-                      </label>
+                      </div>
+                    </label>
 
-                      <label className="sa-op-field">
-                        <span>Phone No.</span>
+                    <label className="sa-op-field">
+                      <span>Phone No.</span>
+                      <div className="sa-reg-input sa-reg-input-phone">
                         <div className="sa-op-phone">
                           <span className="sa-op-phone-code">+91</span>
                           <input
@@ -10605,10 +10956,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             required
                           />
                         </div>
-                      </label>
+                      </div>
+                    </label>
 
-                      <label className="sa-op-field sa-op-field-wide">
-                        <span>Email ID</span>
+                    <label className="sa-op-field">
+                      <span>Email ID</span>
+                      <div className="sa-reg-input">
+                        <Mail size={15} />
                         <input
                           type="email"
                           name="subadmin-email"
@@ -10619,10 +10973,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           onChange={(e) => setSubAdminEmail(e.target.value)}
                           required
                         />
-                      </label>
+                      </div>
+                    </label>
 
-                      <label className="sa-op-field">
-                        <span>{editingSubAdmin ? 'Password (leave blank to keep)' : 'Password'}</span>
+                    <label className="sa-op-field">
+                      <span>{editingSubAdmin ? 'Password (leave blank to keep)' : 'Password'}</span>
+                      <div className="sa-reg-input">
+                        <Lock size={15} />
                         <div className="sa-op-password">
                           <input
                             type={showPassword ? 'text' : 'password'}
@@ -10639,13 +10996,34 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             onClick={() => setShowPassword((prev) => !prev)}
                             title={showPassword ? 'Hide Password' : 'Show Password'}
                           >
-                            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                           </button>
                         </div>
-                      </label>
+                      </div>
+                    </label>
 
-                      <label className="sa-op-field">
-                        <span>Allowed Warehouses</span>
+                    <label className="sa-op-field">
+                      <span>Registration Date</span>
+                      <div className="sa-reg-input">
+                        <Calendar size={15} />
+                        <input
+                          type="text"
+                          className="sa-reg-readonly"
+                          readOnly
+                          value={
+                            editingSubAdmin?.created_at
+                              ? new Date(editingSubAdmin.created_at).toLocaleDateString('en-GB')
+                              : new Date().toLocaleDateString('en-GB')
+                          }
+                          aria-label="Registration date"
+                        />
+                      </div>
+                    </label>
+
+                    <label className="sa-op-field sa-reg-scope-field">
+                      <span>Allowed Warehouses</span>
+                      <div className="sa-reg-input">
+                        <Home size={15} />
                         <select
                           value=""
                           onChange={(e) => {
@@ -10668,24 +11046,33 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               </option>
                             ))}
                         </select>
-                        <div className="sa-op-chips">
-                          {subAdminSelectedWarehouses.length === 0 ? (
-                            <em>No warehouses selected — full warehouse access</em>
-                          ) : (
-                            subAdminSelectedWarehouses.map((wh, idx) => (
-                              <span key={idx} className="sa-op-chip">
-                                {lookupMasterLabel(wh, accessScopeOptions.warehouseMasters)}
-                                <button type="button" onClick={() => setSubAdminSelectedWarehouses((prev) => prev.filter((_, i) => i !== idx))} title="Remove">
-                                  <X size={12} />
-                                </button>
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </label>
+                      </div>
+                      <div className="sa-op-chips">
+                        {subAdminSelectedWarehouses.length === 0 ? (
+                          <em>No warehouses selected — full warehouse access</em>
+                        ) : (
+                          subAdminSelectedWarehouses.map((wh, idx) => (
+                            <span key={idx} className="sa-op-chip">
+                              {lookupMasterLabel(wh, accessScopeOptions.warehouseMasters)}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSubAdminSelectedWarehouses((prev) => prev.filter((_, i) => i !== idx))
+                                }
+                                title="Remove"
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </label>
 
-                      <label className="sa-op-field">
-                        <span>Allowed Clients</span>
+                    <label className="sa-op-field sa-reg-scope-field">
+                      <span>Allowed Clients</span>
+                      <div className="sa-reg-input">
+                        <Package size={15} />
                         <select
                           value=""
                           disabled={subAdminSelectedWarehouses.length === 0}
@@ -10709,9 +11096,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 : `Select client (${subAdminClientOptions.length} for selected warehouse(s))…`}
                           </option>
                           {subAdminSelectedWarehouses.length > 0 ? (
-                            <option value="__ALL__">
-                              All — all products in selected warehouse(s)
-                            </option>
+                            <option value="__ALL__">All — all products in selected warehouse(s)</option>
                           ) : null}
                           {subAdminClientOptions
                             .filter((c) => !subAdminSelectedClients.includes(c.value))
@@ -10721,185 +11106,322 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               </option>
                             ))}
                         </select>
-                        <div className="sa-op-chips">
-                          {subAdminSelectedWarehouses.length === 0 ? (
-                            <em>Pick warehouses above — clients will list for those warehouses only</em>
-                          ) : subAdminSelectedClients.length === 0 ? (
-                            <span className="sa-op-chip" title="Full access to all products in selected warehouse(s)">
-                              All products
+                      </div>
+                      <div className="sa-op-chips">
+                        {subAdminSelectedWarehouses.length === 0 ? (
+                          <em>Pick warehouses above — clients will list for those warehouses only</em>
+                        ) : subAdminSelectedClients.length === 0 ? (
+                          <span className="sa-op-chip" title="Full access to all products in selected warehouse(s)">
+                            All products
+                          </span>
+                        ) : (
+                          subAdminSelectedClients.map((client, idx) => (
+                            <span key={idx} className="sa-op-chip">
+                              {lookupMasterLabel(client, accessScopeOptions.clientMasters)}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSubAdminSelectedClients((prev) => prev.filter((_, i) => i !== idx))
+                                }
+                                title="Remove"
+                              >
+                                <X size={12} />
+                              </button>
                             </span>
-                          ) : (
-                            subAdminSelectedClients.map((client, idx) => (
-                              <span key={idx} className="sa-op-chip">
-                                {lookupMasterLabel(client, accessScopeOptions.clientMasters)}
-                                <button type="button" onClick={() => setSubAdminSelectedClients((prev) => prev.filter((_, i) => i !== idx))} title="Remove">
-                                  <X size={12} />
-                                </button>
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </label>
-                    </div>
+                          ))
+                        )}
+                      </div>
+                    </label>
 
-                    <div className="sa-op-form-actions">
-                      {editingSubAdmin && (
-                        <button type="button" className="sa-op-btn-text" onClick={cancelEditSubAdmin}>
-                          Cancel
-                        </button>
-                      )}
-                      <button
-                        type="submit"
-                        className={`sa-op-btn-primary${editingSubAdmin ? ' update' : ''}`}
-                        disabled={savingSubAdmin || loadingSubAdmins}
-                      >
-                        {savingSubAdmin ? (
-                          <>
-                            <Loader2 size={14} className="spinner-icon" />
-                            {subAdminProcessStatus || 'Processing…'}
-                          </>
-                        ) : (editingSubAdmin ? 'Update Customer' : 'Register Customer')}
+                    <label className="sa-op-field sa-reg-notes-field">
+                      <span>Notes / Remarks</span>
+                      <div className="sa-reg-textarea-wrap">
+                        <FileText size={15} />
+                        <textarea
+                          name="subadmin-notes"
+                          rows={3}
+                          placeholder="Optional notes or special instructions..."
+                          value={subAdminNotes}
+                          onChange={(e) => setSubAdminNotes(e.target.value)}
+                        />
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="sa-op-form-actions">
+                    <button type="button" className="sa-reg-btn-reset" onClick={resetSubAdminForm}>
+                      <RefreshCw size={14} />
+                      Reset
+                    </button>
+                    {editingSubAdmin ? (
+                      <button type="button" className="sa-op-btn-text" onClick={cancelEditSubAdmin}>
+                        Cancel
                       </button>
-                    </div>
-                  </form>
-                </section>
+                    ) : null}
+                    <button
+                      type="submit"
+                      className={`sa-op-btn-primary${editingSubAdmin ? ' update' : ''}`}
+                      disabled={savingSubAdmin || loadingSubAdmins}
+                    >
+                      {savingSubAdmin ? (
+                        <>
+                          <Loader2 size={14} className="spinner-icon" />
+                          {subAdminProcessStatus || 'Processing…'}
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={14} />
+                          {editingSubAdmin ? 'Update Customer' : 'Register Customer'}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </section>
 
-                <section className="sa-op-card sa-op-directory">
-                  {(() => {
-                    const filteredSubAdminsList = subAdmins.filter((sa) => {
-                      const term = subAdminSearch.toLowerCase();
-                      return (
-                        (sa.full_name && sa.full_name.toLowerCase().includes(term)) ||
-                        (sa.email && sa.email.toLowerCase().includes(term)) ||
-                        (sa.phone_no && sa.phone_no.toLowerCase().includes(term))
-                      );
-                    });
+              <section className="sa-op-card sa-op-directory sa-reg-dir-card">
+                {(() => {
+                  const avatarPalette = [
+                    { bg: '#dbeafe', color: '#1d4ed8' },
+                    { bg: '#ede9fe', color: '#6d28d9' },
+                    { bg: '#ccfbf1', color: '#0f766e' },
+                    { bg: '#ffedd5', color: '#c2410c' },
+                    { bg: '#fce7f3', color: '#be185d' },
+                    { bg: '#e0e7ff', color: '#3730a3' }
+                  ];
+                  const relativeAgo = (iso) => {
+                    if (!iso) return '';
+                    const t = new Date(iso).getTime();
+                    if (Number.isNaN(t)) return '';
+                    const days = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+                    if (days === 0) return 'today';
+                    if (days === 1) return '1 day ago';
+                    if (days < 60) return `${days} days ago`;
+                    const months = Math.round(days / 30);
+                    return months === 1 ? '1 month ago' : `${months} months ago`;
+                  };
+                  const filteredSubAdminsList = subAdmins.filter((sa) => {
+                    const term = subAdminSearch.toLowerCase();
                     return (
-                      <>
-                        <div className="sa-op-dir-toolbar">
+                      (sa.full_name && sa.full_name.toLowerCase().includes(term)) ||
+                      (sa.email && sa.email.toLowerCase().includes(term)) ||
+                      (sa.phone_no && String(sa.phone_no).toLowerCase().includes(term)) ||
+                      (sa.allowed_warehouses && String(sa.allowed_warehouses).toLowerCase().includes(term))
+                    );
+                  });
+                  return (
+                    <>
+                      <div className="sa-reg-dir-head">
+                        <div className="sa-reg-dir-title">
+                          <div className="sa-op-card-icon">
+                            <User size={16} />
+                          </div>
                           <div>
                             <h2 className="sa-op-title">Customers Directory</h2>
                             <p className="sa-op-sub">
-                              {filteredSubAdminsList.length} customer{filteredSubAdminsList.length === 1 ? '' : 's'} · search, edit or revoke access
+                              {filteredSubAdminsList.length} customer
+                              {filteredSubAdminsList.length === 1 ? '' : 's'}
                             </p>
                           </div>
-                          <div className="sa-op-dir-tools">
-                            <label className="sa-op-search">
-                              <Search size={14} />
-                              <input
-                                type="search"
-                                placeholder="Search mail-style: name, email, phone"
-                                value={subAdminSearch}
-                                onChange={(e) => setSubAdminSearch(e.target.value)}
-                              />
-                            </label>
-                          </div>
                         </div>
+                        <div className="sa-op-dir-tools">
+                          <label className="sa-op-search sa-reg-search">
+                            <Search size={15} />
+                            <input
+                              type="search"
+                              placeholder="Search by name, email, warehouse..."
+                              value={subAdminSearch}
+                              onChange={(e) => setSubAdminSearch(e.target.value)}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="sa-op-btn-export"
+                            onClick={handleExportCustomersDirectory}
+                            disabled={!subAdmins || subAdmins.length === 0}
+                            title="Export customers directory to CSV"
+                          >
+                            <Download size={14} />
+                            <span>Export</span>
+                          </button>
+                        </div>
+                      </div>
 
-                        {subAdminSuccess && <div className="sa-op-banner success">{subAdminSuccess}</div>}
-                        {subAdminError && <div className="sa-op-banner error">{subAdminError}</div>}
+                      {exportError?.retryKey === 'customers' && (
+                        <div className="sa-op-banner-wrap">
+                          <ExportErrorBanner
+                            message={exportError.message}
+                            retryable={exportError.retryable}
+                            onRetry={retryFailedExport}
+                            onDismiss={() => setExportError(null)}
+                          />
+                        </div>
+                      )}
+                      {subAdminSuccess && <div className="sa-op-banner success">{subAdminSuccess}</div>}
+                      {subAdminError && (
+                        <div className="sa-op-banner-wrap">
+                          <LoadErrorBanner
+                            message={subAdminError}
+                            onRetry={loadSubAdminsData}
+                            onDismiss={() => setSubAdminError('')}
+                          />
+                        </div>
+                      )}
 
-                        {loadingSubAdmins ? (
-                          <SaDataLoading label="Loading customers…" />
-                        ) : filteredSubAdminsList.length === 0 ? (
-                          <div className="sa-op-empty">
-                            <ShieldAlert size={28} />
-                            <p>No matching customers found.</p>
-                          </div>
-                        ) : (
-                          <div className="sa-op-inbox">
-                            <table className="sa-op-dir-table sa-op-dir-table-customers">
-                              <thead>
-                                <tr>
-                                  <th>Customer</th>
-                                  <th>Email</th>
-                                  <th>Warehouses</th>
-                                  <th>Clients</th>
-                                  <th>Phone</th>
-                                  <th>Registered</th>
-                                  <th>Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredSubAdminsList.map((sa) => {
-                                  const initials = String(sa.full_name || sa.email || 'CU')
+                      {loadingSubAdmins ? (
+                        <SaDataLoading label="Loading customers…" />
+                      ) : filteredSubAdminsList.length === 0 ? (
+                        <div className="sa-op-empty">
+                          <ShieldAlert size={28} />
+                          <p>No matching customers found.</p>
+                        </div>
+                      ) : (
+                        <div className="sa-op-inbox">
+                          <table className="sa-op-dir-table sa-reg-dir-table sa-reg-dir-table-customers">
+                            <thead>
+                              <tr>
+                                <th>Customer</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Warehouses</th>
+                                <th>Clients</th>
+                                <th>Registered</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredSubAdminsList.map((sa, idx) => {
+                                const initials =
+                                  String(sa.full_name || sa.email || 'CU')
                                     .split(/\s+/)
                                     .filter(Boolean)
                                     .slice(0, 2)
                                     .map((p) => p[0]?.toUpperCase())
                                     .join('') || 'CU';
-                                  const warehouseList = sa.allowed_warehouses
-                                    ? sa.allowed_warehouses.split(',').map((w) => w.trim()).filter(Boolean)
-                                    : [];
-                                  const clientList = sa.allowed_clients
-                                    ? sa.allowed_clients.split(',').map((c) => c.trim()).filter(Boolean)
-                                    : [];
-                                  const warehouseLabel = warehouseList.length
-                                    ? warehouseList
-                                        .map((w) => lookupMasterLabel(w, accessScopeOptions.warehouseMasters) || w)
-                                        .join(', ')
-                                    : 'All warehouses';
-                                  const clientLabel = clientList.length
-                                    ? clientList
-                                        .map((c) => lookupMasterLabel(c, accessScopeOptions.clientMasters) || c)
-                                        .join(', ')
-                                    : 'All products (warehouse)';
-                                  return (
-                                    <tr key={sa.id} className="sa-op-dir-row">
-                                      <td className="sa-op-dir-td-operator">
+                                const tone = avatarPalette[(Number(sa.id) || idx) % avatarPalette.length];
+                                const warehouseList = sa.allowed_warehouses
+                                  ? sa.allowed_warehouses.split(',').map((w) => w.trim()).filter(Boolean)
+                                  : [];
+                                const clientList = sa.allowed_clients
+                                  ? sa.allowed_clients.split(',').map((c) => c.trim()).filter(Boolean)
+                                  : [];
+                                const warehouseLabel = warehouseList.length
+                                  ? warehouseList
+                                      .map((w) => lookupMasterLabel(w, accessScopeOptions.warehouseMasters) || w)
+                                      .join(', ')
+                                  : 'All warehouses';
+                                const clientLabel = clientList.length
+                                  ? clientList
+                                      .map((c) => lookupMasterLabel(c, accessScopeOptions.clientMasters) || c)
+                                      .join(', ')
+                                  : 'All products';
+                                const regDate = sa.created_at
+                                  ? new Date(sa.created_at).toLocaleDateString('en-GB')
+                                  : '—';
+                                const ago = relativeAgo(sa.created_at);
+                                return (
+                                  <tr key={sa.id} className="sa-op-dir-row">
+                                    <td className="sa-op-dir-td-operator">
+                                      <button
+                                        type="button"
+                                        className="sa-op-dir-operator-btn"
+                                        onClick={() => startEditSubAdmin(sa)}
+                                        title="Edit Customer Profile"
+                                      >
+                                        <span
+                                          className="sa-op-avatar sa-reg-avatar"
+                                          style={{ background: tone.bg, color: tone.color }}
+                                        >
+                                          {initials}
+                                        </span>
+                                        <span className="sa-op-sender">
+                                          <strong>{sa.full_name || 'Unnamed customer'}</strong>
+                                          <em>#{sa.id}</em>
+                                        </span>
+                                      </button>
+                                    </td>
+                                    <td className="sa-op-dir-td-email" title={sa.email || ''}>
+                                      {sa.email || '—'}
+                                    </td>
+                                    <td className="sa-op-dir-td-phone">
+                                      {sa.phone_no ? formatIndiaPhoneDisplay(sa.phone_no) : '—'}
+                                    </td>
+                                    <td className="sa-op-dir-td-wh" title={warehouseLabel}>
+                                      <span className="sa-reg-wh-cell">
+                                        <Home size={13} />
+                                        {warehouseLabel}
+                                      </span>
+                                    </td>
+                                    <td className="sa-op-dir-td-clients" title={clientLabel}>
+                                      {clientLabel}
+                                    </td>
+                                    <td className="sa-op-dir-td-date">
+                                      <span className="sa-reg-date-cell">
+                                        {regDate}
+                                        {ago ? <span className="sa-reg-ago">, {ago}</span> : null}
+                                      </span>
+                                    </td>
+                                    <td className="sa-op-dir-td-status">
+                                      <span className="sa-reg-status">
+                                        <span className="sa-reg-status-dot" />
+                                        Active
+                                      </span>
+                                    </td>
+                                    <td className="sa-op-dir-td-actions">
+                                      <div className="sa-op-row-actions sa-reg-row-actions">
                                         <button
                                           type="button"
-                                          className="sa-op-dir-operator-btn"
+                                          className="sa-op-icon-btn"
                                           onClick={() => startEditSubAdmin(sa)}
-                                          title="Edit Customer Profile"
+                                          title="Edit"
                                         >
-                                          <span className="sa-op-avatar">{initials}</span>
-                                          <span className="sa-op-sender">
-                                            <strong>{sa.full_name || 'Unnamed customer'}</strong>
-                                            <em>#{sa.id}</em>
-                                          </span>
+                                          <Edit size={14} />
                                         </button>
-                                      </td>
-                                      <td className="sa-op-dir-td-email" title={sa.email || ''}>
-                                        {sa.email || '—'}
-                                      </td>
-                                      <td className="sa-op-dir-td-wh" title={warehouseLabel}>
-                                        {warehouseLabel}
-                                      </td>
-                                      <td className="sa-op-dir-td-clients" title={clientLabel}>
-                                        {clientLabel}
-                                      </td>
-                                      <td className="sa-op-dir-td-phone">
-                                        {sa.phone_no ? formatIndiaPhoneDisplay(sa.phone_no) : '—'}
-                                      </td>
-                                      <td className="sa-op-dir-td-date">
-                                        {sa.created_at ? new Date(sa.created_at).toLocaleDateString('en-GB') : '—'}
-                                      </td>
-                                      <td className="sa-op-dir-td-actions">
-                                        <div className="sa-op-row-actions">
-                                          <button type="button" className="sa-op-icon-btn" onClick={() => startEditSubAdmin(sa)} title="Edit">
-                                            <Edit size={14} />
+                                        <div className="sa-reg-more-wrap">
+                                          <button
+                                            type="button"
+                                            className="sa-op-icon-btn"
+                                            title="More"
+                                            onClick={() =>
+                                              setCustDirMenuId((cur) => (cur === sa.id ? null : sa.id))
+                                            }
+                                          >
+                                            <MoreVertical size={14} />
                                           </button>
-                                          <button type="button" className="sa-op-icon-btn danger" onClick={() => handleDeleteSubAdmin(sa)} title="Revoke">
-                                            <Trash2 size={14} />
-                                          </button>
+                                          {custDirMenuId === sa.id ? (
+                                            <div className="sa-reg-more-menu">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setCustDirMenuId(null);
+                                                  handleDeleteSubAdmin(sa);
+                                                }}
+                                              >
+                                                <Trash2 size={13} />
+                                                Revoke access
+                                              </button>
+                                            </div>
+                                          ) : null}
                                         </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </section>
-              </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </section>
+            </div>
           </div>
         )}
 
+        {/* --- Menu: Data operators (CRUD, chamber mappings, task status, SA edit monitors) --- */}
         {activeMenu === 'data_operators' && (
           <div className="sa-um">
             {viewingOperator ? (
@@ -10957,131 +11479,760 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   }
                   return true;
                 });
+                const mappingActiveClients = uniqueClientsByName(
+                  (opMappings || []).filter((m) => !isDeactiveAssignment(m))
+                );
+                const mappingActiveNames = new Set(
+                  mappingActiveClients.map((m) => String(m.client_name || '').trim().toLowerCase())
+                );
+                const mappingInactiveClients = uniqueClientsByName(
+                  (opMappings || []).filter(
+                    (m) =>
+                      isDeactiveAssignment(m) &&
+                      !mappingActiveNames.has(String(m.client_name || '').trim().toLowerCase())
+                  )
+                );
+                const mappingTotalClients = mappingActiveClients.length + mappingInactiveClients.length;
+                const chamberLimit = Number(op.chamber_limit) || 4;
+                const periodLabel =
+                  opTaskAppliedFrom && opTaskAppliedTo
+                    ? opTaskAppliedFrom === opTaskAppliedTo
+                      ? formatDateStr(opTaskAppliedFrom)
+                      : `${formatDateStr(opTaskAppliedFrom)} → ${formatDateStr(opTaskAppliedTo)}`
+                    : 'Selected period';
+                const todayKey = localDateStr();
+                const todayItems = (opTaskStatus.items || []).filter((i) => i.date === todayKey);
+                const todayMorn = todayItems.filter((i) => String(i.shift || '').toLowerCase().includes('morn'));
+                const todayEve = todayItems.filter((i) => String(i.shift || '').toLowerCase().includes('eve'));
+                const todayMornDone = todayMorn.filter((i) => i.status === 'completed').length;
+                const todayMornTotal = todayMorn.length;
+                const todayEveDone = todayEve.filter((i) => i.status === 'completed').length;
+                const todayEveTotal = todayEve.length;
+                const todayMornPct =
+                  todayMornTotal > 0 ? Math.min(100, Math.round((todayMornDone / todayMornTotal) * 100)) : 0;
+                const todayEvePct =
+                  todayEveTotal > 0 ? Math.min(100, Math.round((todayEveDone / todayEveTotal) * 100)) : 0;
+                const periodDates =
+                  opTaskAppliedFrom && opTaskAppliedTo
+                    ? enumerateDateKeys(opTaskAppliedFrom, opTaskAppliedTo)
+                    : [];
+                const ioMoveTotal = (Number(inTotal) || 0) + (Number(outTotal) || 0);
+                const inSharePct =
+                  ioMoveTotal > 0 ? Math.min(100, Math.round(((Number(inTotal) || 0) / ioMoveTotal) * 100)) : 0;
+                const outSharePct = ioMoveTotal > 0 ? Math.max(0, 100 - inSharePct) : 0;
+                const taskTotal = Number(opTaskStatus.total) || 0;
+                const taskCompleted = Number(opTaskStatus.completed) || 0;
+                const taskPending = Number(opTaskStatus.pending) || 0;
+                const taskOverdue = Number(opTaskStatus.overdue) || 0;
+                const ioForDate = (dateKey) => {
+                  const day = opIoByDate?.[dateKey];
+                  if (day) {
+                    return {
+                      in: Number(day.inward) || 0,
+                      out: Number(day.outward) || 0
+                    };
+                  }
+                  if (dateKey === todayKey) {
+                    return { in: inToday, out: outToday };
+                  }
+                  return { in: 0, out: 0 };
+                };
+                const shiftCellTone = (row, kind) => {
+                  const total = kind === 'morning' ? row.morning : row.evening;
+                  const done = kind === 'morning' ? row.mornDone : row.eveDone;
+                  const overdue = kind === 'morning' ? row.mornOverdue : row.eveOverdue;
+                  if (total === 0) return { label: '—', tone: 'idle', done: 0, expected: 0 };
+                  const label = `${done}/${total}`;
+                  if (done === total) return { label, tone: 'ok', done, expected: total };
+                  if (overdue > 0) return { label, tone: 'bad', done, expected: total };
+                  return { label, tone: 'warn', done, expected: total };
+                };
+                // Group task items by date for timeline table
+                const timelineByDate = {};
+                (filteredOpTasks || []).forEach((task) => {
+                  const d = task.date || '—';
+                  if (!timelineByDate[d]) {
+                    timelineByDate[d] = {
+                      date: d,
+                      morning: 0,
+                      evening: 0,
+                      mornDone: 0,
+                      eveDone: 0,
+                      mornOverdue: 0,
+                      eveOverdue: 0,
+                      overdue: 0,
+                      pending: 0
+                    };
+                  }
+                  const shift = String(task.shift || '').toLowerCase();
+                  const done = task.status === 'completed';
+                  if (shift.includes('morn')) {
+                    timelineByDate[d].morning += 1;
+                    if (done) timelineByDate[d].mornDone += 1;
+                    else if (task.status === 'overdue') timelineByDate[d].mornOverdue += 1;
+                  } else if (shift.includes('eve')) {
+                    timelineByDate[d].evening += 1;
+                    if (done) timelineByDate[d].eveDone += 1;
+                    else if (task.status === 'overdue') timelineByDate[d].eveOverdue += 1;
+                  }
+                  if (task.status === 'overdue') timelineByDate[d].overdue += 1;
+                  if (task.status === 'pending') timelineByDate[d].pending += 1;
+                });
+                const timelineRows = Object.values(timelineByDate)
+                  .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+                const TIMELINE_PAGE_SIZE = 10;
+                const timelineTotal = timelineRows.length;
+                const timelinePageSafe = Math.min(
+                  Math.max(1, opTimelinePage),
+                  Math.max(1, Math.ceil(timelineTotal / TIMELINE_PAGE_SIZE) || 1)
+                );
+                const pagedTimelineRows = timelineRows.slice(
+                  (timelinePageSafe - 1) * TIMELINE_PAGE_SIZE,
+                  timelinePageSafe * TIMELINE_PAGE_SIZE
+                );
+                const timelineRowStatus = (row) => {
+                  const st =
+                    row.overdue > 0
+                      ? 'bad'
+                      : row.pending > 0
+                        ? 'warn'
+                        : row.morning + row.evening > 0 &&
+                            row.mornDone + row.eveDone === row.morning + row.evening
+                          ? 'ok'
+                          : 'idle';
+                  const label =
+                    st === 'bad'
+                      ? 'Overdue'
+                      : st === 'warn'
+                        ? 'Partial'
+                        : st === 'ok'
+                          ? 'Completed'
+                          : 'Pending';
+                  return { st, label };
+                };
+                const exportTimelineExcelSheet = () => {
+                  try {
+                    if (!confirmExportSize(timelineRows.length)) return;
+                    const headers = [
+                      'Date',
+                      'Morning (done/expected)',
+                      'Evening (done/expected)',
+                      'Total Task',
+                      'Inward',
+                      'Outward',
+                      'Status'
+                    ];
+                    const rows = timelineRows.map((row) => {
+                      const mornCell = shiftCellTone(row, 'morning');
+                      const eveCell = shiftCellTone(row, 'evening');
+                      const { label } = timelineRowStatus(row);
+                      const dayIo = ioForDate(row.date);
+                      return [
+                        formatDateStr(row.date),
+                        excelRatioText(mornCell.done, mornCell.expected),
+                        excelRatioText(eveCell.done, eveCell.expected),
+                        row.morning + row.evening,
+                        dayIo.in,
+                        dayIo.out,
+                        label
+                      ];
+                    });
+                    const csv = toCsvContent(headers, rows);
+                    const doCode = `DO-${String(op.id || '').padStart(3, '0')}`;
+                    const fromPart = opTaskAppliedFrom || 'all';
+                    const toPart = opTaskAppliedTo || 'all';
+                    downloadCsv(
+                      `${doCode}_Task_Timeline_${fromPart}_to_${toPart}.csv`,
+                      csv
+                    );
+                  } catch (err) {
+                    window.alert(getExportErrorMessage(err));
+                  }
+                };
                 return (
-                  <div className="do-gmail-view">
-                    <div className="do-gmail-panel">
-                      <div className="do-gmail-toolbar">
-                        <div className="do-gmail-toolbar-left">
-                          <button type="button" className="do-gmail-icon-btn" onClick={closeOperatorProfile} title="Back">
-                            <ArrowLeft size={14} />
-                          </button>
-                          <div className="do-gmail-avatar">{initials}</div>
-                          <div>
-                            <h2 className="do-gmail-title">{op.full_name || 'Data Operator'}</h2>
-                            <p className="do-gmail-sub">{op.email}</p>
+                  <div className="do-prof">
+                    <div className="do-prof-topbar">
+                      <label className="do-prof-search">
+                        <Search size={15} />
+                        <input
+                          type="search"
+                          placeholder="Search DO, operator, warehouse..."
+                          value={operatorSearch}
+                          onChange={(e) => setOperatorSearch(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') closeOperatorProfile();
+                          }}
+                          aria-label="Search operators"
+                        />
+                      </label>
+                      <span className="do-prof-live">
+                        <span className="do-prof-live-dot" />
+                        Live System Monitoring
+                      </span>
+                    </div>
+
+                    <div className="do-prof-page-head">
+                      <div className="do-prof-page-head-left">
+                        <button type="button" className="do-prof-back" onClick={closeOperatorProfile} title="Back">
+                          <ArrowLeft size={18} />
+                        </button>
+                        <h1>DO Profile</h1>
+                      </div>
+                      <div className="do-prof-page-actions">
+                        <button type="button" className="do-prof-btn" onClick={() => startEditOperator(op)}>
+                          <Edit size={14} />
+                          Edit
+                        </button>
+                        <button type="button" className="do-prof-btn danger" onClick={() => handleDeleteOperator(op)}>
+                          <Trash2 size={14} />
+                          Revoke
+                        </button>
+                      </div>
+                    </div>
+
+                    <section className="do-prof-hero do-prof-hero-v3">
+                      <div className="do-prof-hero-info">
+                        <div className="do-prof-hero-id">
+                          <span className="do-prof-avatar">{initials}</span>
+                          <div className="do-prof-hero-id-body">
+                            <div className="do-prof-name-row">
+                              <h2>{op.full_name || 'Data Operator'}</h2>
+                              <span className="do-prof-active">
+                                <i />
+                                Active
+                              </span>
+                            </div>
+                            <p className="do-prof-role">
+                              <span>Data Operator (DO)</span>
+                              <span className="do-prof-id-chip">
+                                DO-{String(op.id || '').padStart(3, '0')}
+                              </span>
+                            </p>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button type="button" className="do-gmail-text-btn" onClick={() => startEditOperator(op)}>
-                            <Edit size={12} />
-                            Edit
-                          </button>
-                          <button type="button" className="do-gmail-text-btn danger" onClick={() => handleDeleteOperator(op)}>
-                            <Trash2 size={12} />
-                            Revoke
-                          </button>
+
+                        <div className="do-prof-info-meta">
+                          <span className="do-prof-meta-chip">
+                            <Phone size={12} />
+                            <b>Phone</b>
+                            <em>{formatIndiaPhoneDisplay(op.phone_no) || '—'}</em>
+                          </span>
+                          <span className="do-prof-meta-chip">
+                            <Mail size={12} />
+                            <b>Email</b>
+                            <em title={op.email || ''}>{op.email || '—'}</em>
+                          </span>
+                          <span className="do-prof-meta-chip">
+                            <Home size={12} />
+                            <b>Warehouse</b>
+                            <em>{op.warehouse_name || 'Not configured'}</em>
+                          </span>
+                          <span className="do-prof-meta-chip">
+                            <LayoutGrid size={12} />
+                            <b>Chamber Limit</b>
+                            <em>{chamberLimit}</em>
+                          </span>
+                          <span className="do-prof-meta-chip wide">
+                            <Calendar size={12} />
+                            <b>Registered</b>
+                            <em>
+                              {op.created_at
+                                ? new Date(op.created_at).toLocaleDateString('en-GB')
+                                : '—'}
+                            </em>
+                          </span>
                         </div>
                       </div>
-                      <div className="do-gmail-section-label">Account</div>
-                      {profileFields.map((field) => (
-                        <div key={field.label} className="do-gmail-row">
-                          <div className="do-gmail-row-label">{field.label}</div>
-                          <div className="do-gmail-row-value">{field.value}</div>
-                        </div>
-                      ))}
-                      <div className="do-gmail-section-label">Inward &amp; Outward (this DO)</div>
-                      <div className="do-profile-io-metrics">
-                        <div className="do-profile-io-card inward">
-                          <span>Total Inward</span>
-                          <strong>{ioLoading ? '…' : inTotal}</strong>
-                          <em>All records by {op.email || 'this DO'}</em>
-                        </div>
-                        <div className="do-profile-io-card outward">
-                          <span>Total Outward</span>
-                          <strong>{ioLoading ? '…' : outTotal}</strong>
-                          <em>All records by {op.email || 'this DO'}</em>
-                        </div>
-                        <div className="do-profile-io-card inward-today">
-                          <span>Today Inward</span>
+
+                      <div className="do-prof-hero-today">
+                        <h3>
+                          TODAY STATUS
+                          <span>{formatDateStr(todayKey)}</span>
+                        </h3>
+                        <article className="do-prof-today-item ring">
+                          <div
+                            className="do-prof-donut morn"
+                            style={{ '--pct': `${todayMornPct}%` }}
+                          >
+                            <i>{todayMornPct}%</i>
+                          </div>
+                          <span>
+                            <Sun size={12} /> Morning
+                          </span>
+                          <strong>
+                            {todayMornDone}/{todayMornTotal || 0}
+                          </strong>
+                        </article>
+                        <article className="do-prof-today-item ring">
+                          <div
+                            className="do-prof-donut eve"
+                            style={{ '--pct': `${todayEvePct}%` }}
+                          >
+                            <i>{todayEvePct}%</i>
+                          </div>
+                          <span>
+                            <Moon size={12} /> Evening
+                          </span>
+                          <strong>
+                            {todayEveDone}/{todayEveTotal || 0}
+                          </strong>
+                        </article>
+                        <article className="do-prof-today-item in">
+                          <span>
+                            <ArrowDownLeft size={13} /> Today Inward
+                          </span>
                           <strong>{ioLoading ? '…' : inToday}</strong>
-                          <em>Entry date {op.io_counts_today || localDateStr()}</em>
-                        </div>
-                        <div className="do-profile-io-card outward-today">
-                          <span>Today Outward</span>
+                          <em>of {ioLoading ? '…' : inTotal} total</em>
+                        </article>
+                        <article className="do-prof-today-item out">
+                          <span>
+                            <ArrowUpRight size={13} /> Today Outward
+                          </span>
                           <strong>{ioLoading ? '…' : outToday}</strong>
-                          <em>Entry date {op.io_counts_today || localDateStr()}</em>
-                        </div>
+                          <em>of {ioLoading ? '…' : outTotal} total</em>
+                        </article>
                       </div>
-                      <div className="do-gmail-row">
-                        <div className="do-gmail-row-label">Access</div>
-                        <div className="do-gmail-row-value">
-                          {op.warehouse_name
-                            ? op.warehouse_name
-                            : 'Not configured — edit profile'}
-                        </div>
-                      </div>
+                    </section>
+
+                    <div className="do-prof-tabs">
+                      {[
+                        { id: 'overview', label: 'Overview' },
+                        { id: 'task_status', label: 'Task History' },
+                        { id: 'mappings', label: 'Client Mapping' },
+                        { id: 'master_activity', label: 'Activity Log' }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className={`do-prof-tab${opProfileSection === t.id ? ' active' : ''}`}
+                          onClick={() => setOpProfileSection(t.id)}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
                     </div>
 
-                    <div className="sa-gmail-tabs sa-gmail-tabs-wrap do-profile-section-tabs">
-                      <button
-                        type="button"
-                        className={`sa-gmail-tab${opProfileSection === 'task_status' ? ' active' : ''}`}
-                        onClick={() => setOpProfileSection('task_status')}
-                      >
-                        <Thermometer size={14} />
-                        Chamber Task Status
-                      </button>
-                      <button
-                        type="button"
-                        className={`sa-gmail-tab${opProfileSection === 'mappings' ? ' active' : ''}`}
-                        onClick={() => setOpProfileSection('mappings')}
-                      >
-                        <LayoutGrid size={14} />
-                        Chamber &amp; Client Mappings
-                      </button>
-                      <button
-                        type="button"
-                        className={`sa-gmail-tab${opProfileSection === 'master_activity' ? ' active' : ''}`}
-                        onClick={() => setOpProfileSection('master_activity')}
-                      >
-                        <Activity size={14} />
-                        Master Setup Activity
-                      </button>
-                    </div>
+                    {opProfileSection === 'overview' && (
+                      <div className="do-prof-dash">
+                        <section className="do-prof-section do-prof-analytics">
+                          <div className="do-prof-section-head">
+                            <h3>Selected Period Analytics</h3>
+                            <div className="do-prof-daterange">
+                              <Calendar size={14} />
+                              <input
+                                type="date"
+                                value={opTaskFromDate}
+                                max={opTaskToDate || localDateStr()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setOpTaskFromDate(val);
+                                  if (val && opTaskToDate && val > opTaskToDate) setOpTaskToDate(val);
+                                }}
+                              />
+                              <span>→</span>
+                              <input
+                                type="date"
+                                value={opTaskToDate}
+                                min={opTaskFromDate || undefined}
+                                max={localDateStr()}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setOpTaskToDate(val);
+                                  if (val && opTaskFromDate && val < opTaskFromDate) setOpTaskFromDate(val);
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="do-prof-btn primary"
+                                style={{ height: 28, padding: '0 8px', fontSize: 11 }}
+                                onClick={() => applyOpTaskDateRange(op, opTaskFromDate, opTaskToDate)}
+                                disabled={opTaskLogsLoading || !opTaskFromDate || !opTaskToDate}
+                              >
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+                          <div className="do-prof-analytics-stack">
+                              <div className="do-prof-analytics-mid">
+                                <div className="do-prof-left-stack">
+                                  <div className="do-prof-usage-row cols-2">
+                                    <div className="do-prof-card do-prof-usage-card">
+                                      <div className="do-prof-chart-head">
+                                        <h4>Inward / Outward Usage</h4>
+                                      </div>
+                                      <p className="do-prof-range-label">
+                                        <strong>{periodLabel}</strong>
+                                      </p>
+                                      <div className="do-prof-io-donut-wrap">
+                                        <div
+                                          className={`do-prof-donut io-mix${ioMoveTotal === 0 ? ' empty' : ''}`}
+                                          style={{ '--pct': `${inSharePct}%` }}
+                                          title={`Total Inward ${inTotal} · Total Outward ${outTotal}`}
+                                        >
+                                          <i>
+                                            {ioLoading ? '…' : ioMoveTotal}
+                                            <b>total</b>
+                                          </i>
+                                        </div>
+                                        <div className="do-prof-io-donut-stats">
+                                          <div className="do-prof-io-stat in">
+                                            <span>
+                                              <ArrowDownLeft size={14} /> Total Inward
+                                            </span>
+                                            <strong>{ioLoading ? '…' : inTotal}</strong>
+                                            <em>{inSharePct}%</em>
+                                          </div>
+                                          <div className="do-prof-io-stat out">
+                                            <span>
+                                              <ArrowUpRight size={14} /> Total Outward
+                                            </span>
+                                            <strong>{ioLoading ? '…' : outTotal}</strong>
+                                            <em>{outSharePct}%</em>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="do-prof-card do-prof-task-graph-card">
+                                      <div className="do-prof-chart-head">
+                                        <h4>Task Status (Calendar)</h4>
+                                      </div>
+                                      <p className="do-prof-range-label">
+                                        Calendar:{' '}
+                                        <strong>{periodLabel}</strong>
+                                        {periodDates.length > 0
+                                          ? ` · ${periodDates.length} day${periodDates.length === 1 ? '' : 's'}`
+                                          : ''}
+                                      </p>
+                                      <div className="do-prof-task-count-grid">
+                                        <div className="do-prof-task-count all">
+                                          <span>Total</span>
+                                          <strong>{taskTotal}</strong>
+                                        </div>
+                                        <div className="do-prof-task-count ok">
+                                          <span>Completed</span>
+                                          <strong>{taskCompleted}</strong>
+                                        </div>
+                                        <div className="do-prof-task-count warn">
+                                          <span>Pending</span>
+                                          <strong>{taskPending}</strong>
+                                        </div>
+                                        <div className="do-prof-task-count bad">
+                                          <span>Overdue</span>
+                                          <strong>{taskOverdue}</strong>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="do-prof-card do-prof-timeline-card">
+                                    <div className="do-prof-card-head">
+                                      <h3>DO Task Timeline</h3>
+                                      <button
+                                        type="button"
+                                        className="do-prof-btn primary"
+                                        style={{ height: 30, padding: '0 10px', fontSize: 11 }}
+                                        onClick={exportTimelineExcelSheet}
+                                        disabled={timelineRows.length === 0 || opTaskLogsLoading}
+                                        title="Download DO Task Timeline as Excel sheet (.csv)"
+                                      >
+                                        <Download size={13} />
+                                        Export Excel Sheet
+                                      </button>
+                                    </div>
+                                    {timelineRows.length === 0 ? (
+                                      <div className="do-prof-empty">
+                                        {opTaskLogsLoading ? 'Loading tasks…' : 'No tasks in this range.'}
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="do-prof-table-wrap">
+                                          <table className="do-prof-table">
+                                            <thead>
+                                              <tr>
+                                                <th>Date</th>
+                                                <th>
+                                                  Morning
+                                                  <span className="do-prof-th-sub">done/expected</span>
+                                                </th>
+                                                <th>
+                                                  Evening
+                                                  <span className="do-prof-th-sub">done/expected</span>
+                                                </th>
+                                                <th>Total Task</th>
+                                                <th>Inward</th>
+                                                <th>Outward</th>
+                                                <th>Status</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {pagedTimelineRows.map((row) => {
+                                                const mornCell = shiftCellTone(row, 'morning');
+                                                const eveCell = shiftCellTone(row, 'evening');
+                                                const { st, label } = timelineRowStatus(row);
+                                                const rowTotal = row.morning + row.evening;
+                                                const dayIo = ioForDate(row.date);
+                                                return (
+                                                  <tr key={row.date}>
+                                                    <td>{formatDateStr(row.date)}</td>
+                                                    <td>
+                                                      <span className={`do-prof-pill ${mornCell.tone}`}>
+                                                        {mornCell.label}
+                                                      </span>
+                                                    </td>
+                                                    <td>
+                                                      <span className={`do-prof-pill ${eveCell.tone}`}>
+                                                        {eveCell.label}
+                                                      </span>
+                                                    </td>
+                                                    <td>
+                                                      <strong>{rowTotal}</strong>
+                                                    </td>
+                                                    <td>{dayIo.in}</td>
+                                                    <td>{dayIo.out}</td>
+                                                    <td>
+                                                      <span className={`do-prof-pill ${st}`}>{label}</span>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                        <PaginationBar
+                                          page={timelinePageSafe}
+                                          totalItems={timelineTotal}
+                                          pageSize={TIMELINE_PAGE_SIZE}
+                                          onPageChange={setOpTimelinePage}
+                                          itemLabel="days"
+                                        />
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="do-prof-col-stack">
+                                  <div className="do-prof-card">
+                                    <h3>Warehouse &amp; Chamber Access</h3>
+                                    <div className="do-prof-wh-line">
+                                      <span>Assigned Warehouse</span>
+                                      <strong>{op.warehouse_name || 'Not configured'}</strong>
+                                    </div>
+                                    <div className="do-prof-wh-line">
+                                      <span>Chamber Limit</span>
+                                      <strong>{chamberLimit}</strong>
+                                    </div>
+                                    <div className="do-prof-chambers">
+                                      {(opDisplayChambers.length
+                                        ? opDisplayChambers
+                                        : Array.from({ length: chamberLimit }, (_, i) => ({
+                                            chamber_name: `Chamber ${i + 1}`,
+                                            name: `Chamber ${i + 1}`
+                                          }))
+                                      )
+                                        .slice(0, chamberLimit)
+                                        .map((ch, i) => (
+                                          <span key={ch.id || ch.chamber_name || i} className="do-prof-ch-pill">
+                                            {String(ch.chamber_name || ch.name || `Ch-${i + 1}`)
+                                              .replace(/^Chamber\s+/i, 'Ch-')
+                                              .replace(/^Ch\s+/i, 'Ch-')}
+                                          </span>
+                                        ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="do-prof-card">
+                                    <h3>Client Mapping</h3>
+                                    <div className="do-prof-map-overview-stats">
+                                      <div className="do-prof-map-stat-card wh">
+                                        <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                          <Users size={16} strokeWidth={2.2} />
+                                        </span>
+                                        <div className="do-prof-map-stat-body">
+                                          <em>Total Clients</em>
+                                          <strong>{mappingTotalClients}</strong>
+                                          <span className="do-prof-map-stat-sub">Unique mapped</span>
+                                        </div>
+                                      </div>
+                                      <div className="do-prof-map-stat-card ok">
+                                        <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                          <CheckCircle2 size={16} strokeWidth={2.2} />
+                                        </span>
+                                        <div className="do-prof-map-stat-body">
+                                          <em>Active Clients</em>
+                                          <strong>{mappingActiveClients.length}</strong>
+                                          <span className="do-prof-map-stat-sub">In chambers</span>
+                                        </div>
+                                      </div>
+                                      <div className="do-prof-map-stat-card warn">
+                                        <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                          <UserX size={16} strokeWidth={2.2} />
+                                        </span>
+                                        <div className="do-prof-map-stat-body">
+                                          <em>Inactive Clients</em>
+                                          <strong>{mappingInactiveClients.length}</strong>
+                                          <span className="do-prof-map-stat-sub">Not mapped</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="do-prof-btn"
+                                      style={{ marginTop: 10, width: '100%', justifyContent: 'center' }}
+                                      onClick={() => setOpProfileSection('mappings')}
+                                    >
+                                      Open Client Mapping
+                                    </button>
+                                  </div>
+
+                                  <div className="do-prof-card">
+                                    <h3>Notes / Remarks</h3>
+                                    <p className="do-prof-notes">
+                                      Regular operator profile. Warehouse access and chamber limit are managed from Edit.
+                                      <em>
+                                        Next review:{' '}
+                                        {op.created_at
+                                          ? new Date(
+                                              new Date(op.created_at).getTime() + 90 * 86400000
+                                            ).toLocaleDateString('en-GB')
+                                          : '—'}
+                                      </em>
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                          </div>
+                        </section>
+                      </div>
+                    )}
 
                     {opProfileSection === 'task_status' && (
-                    <div className="do-gmail-panel do-gmail-task-panel">
-                      <div className="do-gmail-toolbar">
+                    <div className="do-prof-card do-prof-panel-wrap do-prof-task-panel">
+                      <div className="do-prof-section-head">
                         <div>
-                          <h3 className="do-gmail-title">Chamber Task Status</h3>
-                          <p className="do-gmail-sub">
+                          <h3>Chamber Task Status</h3>
+                          <p className="do-prof-range-label" style={{ margin: '4px 0 0' }}>
                             Morning &amp; Evening inspections
                             {' · '}
-                            {opTaskAppliedFrom && opTaskAppliedTo
-                              ? (opTaskAppliedFrom === opTaskAppliedTo
-                                ? formatDateStr(opTaskAppliedFrom)
-                                : `${formatDateStr(opTaskAppliedFrom)} to ${formatDateStr(opTaskAppliedTo)}`)
-                              : 'select dates'}
+                            <strong>{periodLabel}</strong>
                             {' · '}
-                            {opTaskStatus.assignmentCount} active client{opTaskStatus.assignmentCount === 1 ? '' : 's'}
+                            {opTaskStatus.assignmentCount} active client
+                            {opTaskStatus.assignmentCount === 1 ? '' : 's'}
                             {!opTaskLogsLoading && opActiveAssignments.length > 0
                               ? ` · ${opTaskLogs.length} log${opTaskLogs.length === 1 ? '' : 's'} loaded`
                               : ''}
                           </p>
                         </div>
-                        <div className="do-map-edit-actions">
-                          <span className={`do-gmail-status-pill ${opTaskStatus.statusTone}`}>
+                        <div className="do-prof-task-head-actions">
+                          <span
+                            className={`do-prof-pill ${
+                              opTaskStatus.statusTone === 'good'
+                                ? 'ok'
+                                : opTaskStatus.statusTone === 'bad'
+                                  ? 'bad'
+                                  : opTaskStatus.statusTone === 'warn' || opTaskStatus.statusTone === 'mixed'
+                                    ? 'warn'
+                                    : 'idle'
+                            }`}
+                          >
                             {opTaskStatus.statusLabel}
                           </span>
+                          <button
+                            type="button"
+                            className="do-prof-btn primary"
+                            style={{ height: 30, padding: '0 10px', fontSize: 11 }}
+                            disabled={filteredOpTasks.length === 0 || opTaskLogsLoading}
+                            title="Download Chamber Task Status as Excel sheet (.csv)"
+                            onClick={() => {
+                              try {
+                                const taskGroupMap = {};
+                                filteredOpTasks.forEach((task) => {
+                                  const key = String(task.date || '—');
+                                  if (!taskGroupMap[key]) {
+                                    taskGroupMap[key] = {
+                                      date: task.date,
+                                      morning: { done: 0, expected: 0, overdue: 0 },
+                                      evening: { done: 0, expected: 0, overdue: 0 },
+                                      overdue: 0,
+                                      pending: 0
+                                    };
+                                  }
+                                  const g = taskGroupMap[key];
+                                  const shift = String(task.shift || '').toLowerCase();
+                                  const bucket = shift.includes('eve')
+                                    ? g.evening
+                                    : shift.includes('morn')
+                                      ? g.morning
+                                      : null;
+                                  if (!bucket) return;
+                                  bucket.expected += 1;
+                                  if (task.status === 'completed') {
+                                    bucket.done += 1;
+                                  } else if (task.status === 'overdue') {
+                                    bucket.overdue += 1;
+                                    g.overdue += 1;
+                                  } else if (task.status === 'pending') {
+                                    g.pending += 1;
+                                  }
+                                });
+                                const exportRows = Object.values(taskGroupMap).sort((a, b) =>
+                                  String(b.date || '').localeCompare(String(a.date || ''))
+                                );
+                                if (!confirmExportSize(exportRows.length)) return;
+                                const headers = [
+                                  'Date',
+                                  'Morning (done/expected)',
+                                  'Evening (done/expected)',
+                                  'Total Task',
+                                  'Inward',
+                                  'Outward',
+                                  'Status'
+                                ];
+                                const rows = exportRows.map((row) => {
+                                  const expected = row.morning.expected + row.evening.expected;
+                                  const done = row.morning.done + row.evening.done;
+                                  const dayIo = ioForDate(row.date);
+                                  const stLabel =
+                                    row.overdue > 0
+                                      ? 'Overdue'
+                                      : row.pending > 0
+                                        ? 'Pending'
+                                        : expected > 0 && done === expected
+                                          ? 'Completed'
+                                          : '—';
+                                  return [
+                                    formatDateStr(row.date),
+                                    excelRatioText(row.morning.done, row.morning.expected),
+                                    excelRatioText(row.evening.done, row.evening.expected),
+                                    expected,
+                                    dayIo.in,
+                                    dayIo.out,
+                                    stLabel
+                                  ];
+                                });
+                                const csv = toCsvContent(headers, rows);
+                                const doCode = `DO-${String(op.id || '').padStart(3, '0')}`;
+                                const fromPart = opTaskAppliedFrom || 'all';
+                                const toPart = opTaskAppliedTo || 'all';
+                                downloadCsv(
+                                  `${doCode}_Chamber_Task_Status_${fromPart}_to_${toPart}.csv`,
+                                  csv
+                                );
+                              } catch (err) {
+                                window.alert(getExportErrorMessage(err));
+                              }
+                            }}
+                          >
+                            <Download size={13} />
+                            Export Excel Sheet
+                          </button>
                         </div>
                       </div>
 
-                      <div className="do-gmail-filters do-gmail-task-filters">
-                        <label className="do-gmail-task-date-field">
-                          <Calendar size={12} />
-                          <span>From</span>
+                      <div className="do-prof-task-toolbar">
+                        <div className="do-prof-daterange">
+                          <Calendar size={14} />
                           <input
-                            className="sa-op-filter"
                             type="date"
                             value={opTaskFromDate}
                             max={opTaskToDate || localDateStr()}
@@ -11092,11 +12243,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             }}
                             title="From date"
                           />
-                        </label>
-                        <label className="do-gmail-task-date-field">
-                          <span>To</span>
+                          <span>→</span>
                           <input
-                            className="sa-op-filter"
                             type="date"
                             value={opTaskToDate}
                             min={opTaskFromDate || undefined}
@@ -11108,19 +12256,21 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             }}
                             title="To date"
                           />
-                        </label>
-                        <div className="do-gmail-task-actions">
                           <button
                             type="button"
-                            className="do-gmail-task-btn primary"
+                            className="do-prof-btn primary"
+                            style={{ height: 28, padding: '0 8px', fontSize: 11 }}
                             onClick={() => applyOpTaskDateRange(op, opTaskFromDate, opTaskToDate)}
                             disabled={opTaskLogsLoading || !opTaskFromDate || !opTaskToDate}
                           >
                             Apply
                           </button>
+                        </div>
+                        <div className="do-prof-task-toolbar-actions">
                           <button
                             type="button"
-                            className="do-gmail-task-btn"
+                            className="do-prof-btn"
+                            style={{ height: 32, padding: '0 10px', fontSize: 12 }}
                             onClick={() => {
                               const { fromDate, toDate } = getDefaultOpTaskRange(1);
                               applyOpTaskDateRange(op, fromDate, toDate);
@@ -11132,158 +12282,259 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           </button>
                           <button
                             type="button"
-                            className="do-gmail-task-btn"
+                            className="do-prof-btn"
+                            style={{ height: 32, padding: '0 10px', fontSize: 12 }}
                             onClick={() => loadOpTaskStatus(op, opTaskAppliedFrom, opTaskAppliedTo)}
                             disabled={opTaskLogsLoading}
                           >
+                            <RefreshCw size={13} />
                             {opTaskLogsLoading ? 'Refreshing…' : 'Refresh'}
                           </button>
+                          {[
+                            { days: 1, label: 'Today' },
+                            { days: 7, label: '7 days' },
+                            { days: 30, label: '30 days' }
+                          ].map((preset) => {
+                            const range = getDefaultOpTaskRange(preset.days);
+                            const active =
+                              opTaskAppliedFrom === range.fromDate && opTaskAppliedTo === range.toDate;
+                            return (
+                              <button
+                                key={preset.days}
+                                type="button"
+                                className={`do-prof-chip${active ? ' active' : ''}`}
+                                onClick={() => applyOpTaskDateRange(op, range.fromDate, range.toDate)}
+                                disabled={opTaskLogsLoading}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
                         </div>
-                        {[
-                          { days: 1, label: 'Today' },
-                          { days: 7, label: '7 days' },
-                          { days: 30, label: '30 days' }
-                        ].map((preset) => {
-                          const range = getDefaultOpTaskRange(preset.days);
-                          const active =
-                            opTaskAppliedFrom === range.fromDate && opTaskAppliedTo === range.toDate;
-                          return (
-                            <button
-                              key={preset.days}
-                              type="button"
-                              className={`do-gmail-task-btn${active ? ' active' : ''}`}
-                              onClick={() => applyOpTaskDateRange(op, range.fromDate, range.toDate)}
-                              disabled={opTaskLogsLoading}
-                            >
-                              {preset.label}
-                            </button>
-                          );
-                        })}
                       </div>
 
-                      <div className="do-gmail-task-stats">
-                        <div className="do-gmail-task-stat completed">
-                          <strong>{opTaskStatus.completed}</strong>
+                      <div className="do-prof-task-count-grid do-prof-task-count-grid-4">
+                        <div className="do-prof-task-count all">
+                          <span>Total</span>
+                          <strong>{opTaskStatus.total}</strong>
+                        </div>
+                        <div className="do-prof-task-count ok">
                           <span>Completed</span>
+                          <strong>{opTaskStatus.completed}</strong>
                         </div>
-                        <div className="do-gmail-task-stat pending">
-                          <strong>{opTaskStatus.pending}</strong>
+                        <div className="do-prof-task-count warn">
                           <span>Pending</span>
+                          <strong>{opTaskStatus.pending}</strong>
                         </div>
-                        <div className="do-gmail-task-stat overdue">
-                          <strong>{opTaskStatus.overdue}</strong>
+                        <div className="do-prof-task-count bad">
                           <span>Overdue</span>
+                          <strong>{opTaskStatus.overdue}</strong>
                         </div>
                       </div>
 
                       {opTaskLogsError && (
-                        <div className="do-gmail-empty" style={{ color: '#c5221f' }}>{opTaskLogsError}</div>
+                        <div className="do-prof-empty" style={{ color: '#b91c1c' }}>{opTaskLogsError}</div>
                       )}
 
                       {!op.warehouse_name ? (
-                        <div className="do-gmail-empty">Configure warehouse access to track chamber tasks.</div>
+                        <div className="do-prof-empty">Configure warehouse access to track chamber tasks.</div>
                       ) : opMappingsLoading && opActiveAssignments.length === 0 ? (
                         <SaDataLoading label="Loading assignments…" compact />
                       ) : opActiveAssignments.length === 0 ? (
-                        <div className="do-gmail-empty">No active chamber clients assigned for this operator.</div>
+                        <div className="do-prof-empty">No active chamber clients assigned for this operator.</div>
                       ) : opTaskLogsLoading && opTaskStatus.total === 0 ? (
                         <SaDataLoading label="Loading task status…" compact />
                       ) : (
                         <>
-                          <div className="do-gmail-filters">
-                            {[
-                              { id: 'all', label: 'All', count: opTaskStatus.total },
-                              { id: 'completed', label: 'Completed', count: opTaskStatus.completed },
-                              { id: 'pending', label: 'Pending', count: opTaskStatus.pending },
-                              { id: 'overdue', label: 'Overdue', count: opTaskStatus.overdue }
-                            ].map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                className={`do-gmail-chip${opTaskFilter === item.id ? ' active' : ''}`}
-                                onClick={() => {
-                                  setOpTaskFilter(item.id);
+                          <div className="do-prof-task-tools">
+                            <div className="do-prof-chips">
+                              {[
+                                { id: 'all', label: 'All', count: opTaskStatus.total },
+                                { id: 'completed', label: 'Completed', count: opTaskStatus.completed },
+                                { id: 'pending', label: 'Pending', count: opTaskStatus.pending },
+                                { id: 'overdue', label: 'Overdue', count: opTaskStatus.overdue }
+                              ].map((item) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  className={`do-prof-chip${opTaskFilter === item.id ? ' active' : ''}`}
+                                  onClick={() => {
+                                    setOpTaskFilter(item.id);
+                                    setOpTaskListPage(1);
+                                  }}
+                                >
+                                  {item.label} ({item.count})
+                                </button>
+                              ))}
+                            </div>
+                            <label className="do-prof-chamber-filter">
+                              <span>Chamber</span>
+                              <select
+                                value={opTaskChamberFilter}
+                                onChange={(e) => {
+                                  setOpTaskChamberFilter(e.target.value);
                                   setOpTaskListPage(1);
                                 }}
+                                title="Filter by chamber"
+                                aria-label="Filter by chamber"
                               >
-                                {item.label} ({item.count})
-                              </button>
-                            ))}
+                                <option value="all">All</option>
+                                {opTaskChamberOptions.map((chamberName) => (
+                                  <option key={chamberName} value={chamberName}>
+                                    {chamberName}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                           </div>
 
                           {filteredOpTasks.length === 0 ? (
-                            <div className="do-gmail-empty">No tasks in this filter for the selected dates.</div>
+                            <div className="do-prof-empty">No tasks in this filter for the selected dates.</div>
                           ) : (
+                            (() => {
+                              const taskGroupMap = {};
+                              filteredOpTasks.forEach((task) => {
+                                const key = String(task.date || '—');
+                                if (!taskGroupMap[key]) {
+                                  taskGroupMap[key] = {
+                                    date: task.date,
+                                    morning: { done: 0, expected: 0, overdue: 0, viewTask: null },
+                                    evening: { done: 0, expected: 0, overdue: 0, viewTask: null },
+                                    overdue: 0,
+                                    pending: 0,
+                                    completed: 0
+                                  };
+                                }
+                                const g = taskGroupMap[key];
+                                const shift = String(task.shift || '').toLowerCase();
+                                const bucket = shift.includes('eve')
+                                  ? g.evening
+                                  : shift.includes('morn')
+                                    ? g.morning
+                                    : null;
+                                if (!bucket) return;
+                                bucket.expected += 1;
+                                if (task.status === 'completed') {
+                                  bucket.done += 1;
+                                  g.completed += 1;
+                                  if (!bucket.viewTask && (task.log || task.reference_no)) {
+                                    bucket.viewTask = task;
+                                  }
+                                } else if (task.status === 'overdue') {
+                                  bucket.overdue += 1;
+                                  g.overdue += 1;
+                                } else if (task.status === 'pending') {
+                                  g.pending += 1;
+                                }
+                              });
+                              const taskGroupRows = Object.values(taskGroupMap).sort((a, b) =>
+                                String(b.date || '').localeCompare(String(a.date || ''))
+                              );
+                              const shiftDoneExpected = (bucket) => {
+                                if (!bucket || bucket.expected === 0) return { label: '—', tone: 'idle' };
+                                const label = `${bucket.done}/${bucket.expected}`;
+                                if (bucket.done === bucket.expected) return { label, tone: 'ok' };
+                                if (bucket.overdue > 0) return { label, tone: 'bad' };
+                                return { label, tone: 'warn' };
+                              };
+                              const pagedGroups = taskGroupRows.slice(
+                                (Math.max(1, opTaskListPage) - 1) * 15,
+                                Math.max(1, opTaskListPage) * 15
+                              );
+                              return (
                             <>
-                              <div className="do-gmail-inbox-head do-gmail-task-head">
-                                <span>Date</span>
-                                <span>Shift</span>
-                                <span className="do-gmail-task-chamber-col">
-                                  <label className="do-gmail-task-chamber-filter">
-                                    <span className="do-gmail-task-chamber-filter-label">Chamber</span>
-                                    <select
-                                      value={opTaskChamberFilter}
-                                      onChange={(e) => {
-                                        setOpTaskChamberFilter(e.target.value);
-                                        setOpTaskListPage(1);
-                                      }}
-                                      title="Filter by chamber"
-                                      aria-label="Filter by chamber"
-                                    >
-                                      <option value="all">All</option>
-                                      {opTaskChamberOptions.map((chamberName) => (
-                                        <option key={chamberName} value={chamberName}>
-                                          {chamberName}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                </span>
-                                <span style={{ textAlign: 'right' }}>Status</span>
-                                <span style={{ textAlign: 'right' }}>View</span>
-                              </div>
-                              <div className="do-gmail-task-list">
-                                {filteredOpTasks
-                                  .slice((Math.max(1, opTaskListPage) - 1) * 15, Math.max(1, opTaskListPage) * 15)
-                                  .map((task) => (
-                                  <div key={`${task.date}-${task.shift}-${task.chamber_name}-${task.client_name}`} className="do-gmail-inbox-row do-gmail-task-row">
-                                    <span className="do-gmail-date">{formatDateStr(task.date)}</span>
-                                    <span className="do-gmail-snippet">{task.shift}</span>
-                                    <span className="do-gmail-snippet">
-                                      {task.chamber_name}
-                                      {' · '}
-                                      {task.client_name}
-                                      {task.reference_no ? ` · ${task.reference_no}` : ''}
-                                    </span>
-                                    <span className={`do-gmail-status ${task.status}`}>
-                                      {task.status === 'completed' ? 'Completed' : task.status === 'pending' ? 'Pending' : 'Overdue'}
-                                    </span>
-                                    <span className="do-gmail-task-view">
-                                      {task.status === 'completed' && (task.log || task.reference_no) ? (
-                                        <button
-                                          type="button"
-                                          className="do-gmail-text-btn"
-                                          onClick={() => openChamberTaskProfile(task, op)}
-                                          title="Open log profile"
-                                        >
-                                          <Eye size={12} />
-                                          View
-                                        </button>
-                                      ) : (
-                                        <span className="do-gmail-task-view-muted">—</span>
-                                      )}
-                                    </span>
-                                  </div>
-                                ))}
+                              <div className="do-prof-table-wrap">
+                                <table className="do-prof-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Date</th>
+                                      <th>
+                                        Morning
+                                        <span className="do-prof-th-sub">done/expected</span>
+                                      </th>
+                                      <th>
+                                        Evening
+                                        <span className="do-prof-th-sub">done/expected</span>
+                                      </th>
+                                      <th>Total Task</th>
+                                      <th>Inward</th>
+                                      <th>Outward</th>
+                                      <th>Status</th>
+                                      <th>View</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {pagedGroups.map((row) => {
+                                      const morn = shiftDoneExpected(row.morning);
+                                      const eve = shiftDoneExpected(row.evening);
+                                      const expected = row.morning.expected + row.evening.expected;
+                                      const done = row.morning.done + row.evening.done;
+                                      const dayIo = ioForDate(row.date);
+                                      const st =
+                                        row.overdue > 0
+                                          ? 'bad'
+                                          : row.pending > 0
+                                            ? 'warn'
+                                            : expected > 0 && done === expected
+                                              ? 'ok'
+                                              : 'idle';
+                                      const stLabel =
+                                        st === 'bad'
+                                          ? 'Overdue'
+                                          : st === 'warn'
+                                            ? 'Pending'
+                                            : st === 'ok'
+                                              ? 'Completed'
+                                              : '—';
+                                      const viewTask = row.morning.viewTask || row.evening.viewTask;
+                                      return (
+                                        <tr key={row.date || 'unknown'}>
+                                          <td>{formatDateStr(row.date)}</td>
+                                          <td>
+                                            <span className={`do-prof-pill ${morn.tone}`}>{morn.label}</span>
+                                          </td>
+                                          <td>
+                                            <span className={`do-prof-pill ${eve.tone}`}>{eve.label}</span>
+                                          </td>
+                                          <td>
+                                            <strong>{expected}</strong>
+                                          </td>
+                                          <td>{dayIo.in}</td>
+                                          <td>{dayIo.out}</td>
+                                          <td>
+                                            <span className={`do-prof-pill ${st}`}>{stLabel}</span>
+                                          </td>
+                                          <td>
+                                            {viewTask ? (
+                                              <button
+                                                type="button"
+                                                className="do-prof-link"
+                                                onClick={() => openChamberTaskProfile(viewTask, op)}
+                                                title="Open log profile"
+                                              >
+                                                <Eye size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                                View
+                                              </button>
+                                            ) : (
+                                              <span className="do-prof-muted">—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
                               </div>
                               <PaginationBar
                                 page={opTaskListPage}
-                                totalItems={filteredOpTasks.length}
+                                totalItems={taskGroupRows.length}
                                 pageSize={15}
                                 onPageChange={setOpTaskListPage}
-                                itemLabel="tasks"
+                                itemLabel="days"
                               />
                             </>
+                              );
+                            })()
                           )}
                         </>
                       )}
@@ -11291,107 +12542,253 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     )}
 
                     {opProfileSection === 'mappings' && (
-                    <div className="do-gmail-panel do-map-panel">
-                      <div className="do-gmail-toolbar">
+                    <div className="do-prof-card do-prof-panel-wrap do-prof-map-panel">
+                      <div className="do-prof-section-head do-prof-map-head">
                         <div>
-                          <h3 className="do-gmail-title">Chamber & Client Mappings</h3>
-                          <p className="do-gmail-sub">
+                          <h3>Chamber &amp; Client Mappings</h3>
+                          <p className="do-prof-range-label" style={{ margin: '4px 0 0' }}>
                             {op.warehouse_name
-                              ? `Which clients sit in which chamber at ${op.warehouse_name}`
+                              ? `Manage which clients are assigned to which chambers at ${op.warehouse_name}.`
                               : 'Configure warehouse access to see chamber mappings.'}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          className="sa-op-btn-export"
-                          onClick={() => handleExportOpChamberClientMappings(op)}
-                          disabled={opMappingsLoading || !op.warehouse_name}
-                          title="Export this DO chamber and client list"
-                        >
-                          <Download size={14} />
-                          Export
-                        </button>
                       </div>
 
                       {opMappingsError && (
-                        <div className="do-gmail-empty" style={{ color: '#c5221f' }}>{opMappingsError}</div>
+                        <div className="do-prof-empty" style={{ color: '#b91c1c' }}>{opMappingsError}</div>
                       )}
                       {opMappingsSuccess && opMasterEditMode && (
-                        <div className="do-gmail-empty" style={{ color: '#188038' }}>{opMappingsSuccess}</div>
+                        <div className="do-prof-empty" style={{ color: '#047857' }}>{opMappingsSuccess}</div>
                       )}
 
                       {!op.warehouse_name ? (
-                        <div className="do-gmail-empty">Warehouse is not configured for this operator.</div>
+                        <div className="do-prof-empty">Warehouse is not configured for this operator.</div>
                       ) : opMappingsLoading ? (
                         <SaDataLoading label={`Loading mappings for ${op.warehouse_name}…`} compact />
                       ) : (
                         (() => {
-                          const mappingSummary = opDisplayChambers.reduce(
-                            (acc, chamberRow) => {
-                              const chamberAssignments = opMappings.filter((m) =>
-                                assignmentMatchesDisplayChamber(m, chamberRow)
-                              );
-                              const activeClients = uniqueClientsByName(
-                                chamberAssignments.filter((m) => !isDeactiveAssignment(m))
-                              );
-                              const activeNames = new Set(
-                                activeClients.map((m) => String(m.client_name || '').trim().toLowerCase())
-                              );
-                              const deactiveClients = uniqueClientsByName(
-                                chamberAssignments.filter(
-                                  (m) =>
-                                    isDeactiveAssignment(m) &&
-                                    !activeNames.has(String(m.client_name || '').trim().toLowerCase())
-                                )
-                              );
-                              acc.active += activeClients.length;
-                              acc.deactive += deactiveClients.length;
-                              return acc;
-                            },
-                            { active: 0, deactive: 0 }
+                          const chamberLimit = Number(op.chamber_limit) || 4;
+                          const chamberMeta = opDisplayChambers.map((chamberRow, chamberIdx) => {
+                            const chamberAssignments = opMappings.filter((m) =>
+                              assignmentMatchesDisplayChamber(m, chamberRow)
+                            );
+                            const activeClients = uniqueClientsByName(
+                              chamberAssignments.filter((m) => !isDeactiveAssignment(m))
+                            );
+                            const activeNames = new Set(
+                              activeClients.map((m) => String(m.client_name || '').trim().toLowerCase())
+                            );
+                            const deactiveClients = uniqueClientsByName(
+                              chamberAssignments.filter(
+                                (m) =>
+                                  isDeactiveAssignment(m) &&
+                                  !activeNames.has(String(m.client_name || '').trim().toLowerCase())
+                              )
+                            );
+                            const chamberType =
+                              activeClients[0]?.chamber_type ||
+                              deactiveClients[0]?.chamber_type ||
+                              (chamberRow.chamberNum != null ? opChamberTypeByNum[chamberRow.chamberNum] : null) ||
+                              (chamberRow.chamberNum != null ? newChamberTypes[chamberRow.chamberNum] : null) ||
+                              chamberRow.chamber_type ||
+                              'Frozen';
+                            return {
+                              chamberRow,
+                              chamberIdx,
+                              activeClients,
+                              deactiveClients,
+                              chamberType,
+                              resolvedChamberId: chamberRow.id,
+                              typeEditKey:
+                                chamberRow.chamberNum != null
+                                  ? chamberRow.chamberNum
+                                  : `id-${chamberRow.id}`
+                            };
+                          });
+                          const mappingActiveUnique = uniqueClientsByName(
+                            (opMappings || []).filter((m) => !isDeactiveAssignment(m))
                           );
-                          const chamberLimit = op.chamber_limit || 4;
+                          const mappingActiveNameSet = new Set(
+                            mappingActiveUnique.map((m) =>
+                              String(m.client_name || '').trim().toLowerCase()
+                            )
+                          );
+                          const mappingInactiveUnique = uniqueClientsByName(
+                            (opMappings || []).filter(
+                              (m) =>
+                                isDeactiveAssignment(m) &&
+                                !mappingActiveNameSet.has(
+                                  String(m.client_name || '').trim().toLowerCase()
+                                )
+                            )
+                          );
+                          const mappingSummary = {
+                            total: mappingActiveUnique.length + mappingInactiveUnique.length,
+                            active: mappingActiveUnique.length,
+                            deactive: mappingInactiveUnique.length
+                          };
+                          const searchQ = String(opMapSearch || '').trim().toLowerCase();
+                          const filteredMeta = chamberMeta.filter((row) => {
+                            if (
+                              opMapChamberFilter !== 'all' &&
+                              String(row.chamberRow.name || '') !== opMapChamberFilter
+                            ) {
+                              return false;
+                            }
+                            if (!searchQ) return true;
+                            const hay = [
+                              row.chamberRow.name,
+                              row.chamberType,
+                              op.warehouse_name,
+                              ...row.activeClients.map((c) => c.client_name),
+                              ...row.deactiveClients.map((c) => c.client_name)
+                            ]
+                              .join(' ')
+                              .toLowerCase();
+                            return hay.includes(searchQ);
+                          });
+                          const tempForType = (type) => {
+                            const zone = pickComplianceZone(type) || 'Frozen';
+                            if (zone === 'Frozen') return '-18 to -22';
+                            if (zone === 'Chilled') return '-5 to 5';
+                            if (zone === 'Dry') return '15 to 25';
+                            if (zone === 'Other') return '0 to 40';
+                            return '—';
+                          };
+                          const indexTone = (idx) => ['blue', 'purple', 'cyan', 'orange'][idx % 4];
+                          const CLIENT_PREVIEW = 6;
                           return (
                         <>
-                          <div className="do-map-summary">
-                            <div className="do-map-summary-item">
-                              <span>Warehouse</span>
-                              <strong>{op.warehouse_name}</strong>
+                          <div className="do-prof-map-stats">
+                            <div className="do-prof-map-stat-card wh">
+                              <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                <Users size={18} strokeWidth={2.2} />
+                              </span>
+                              <div className="do-prof-map-stat-body">
+                                <em>Total Clients</em>
+                                <strong>{mappingSummary.total}</strong>
+                                <span className="do-prof-map-stat-sub">
+                                  {op.warehouse_name || 'Unique mapped'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="do-map-summary-item">
-                              <span>Chambers used</span>
-                              <strong>
-                                {opDisplayChambers.length}
-                                <em> / {chamberLimit}</em>
-                              </strong>
+                            <div className="do-prof-map-stat-card ch">
+                              <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                <LayoutGrid size={18} strokeWidth={2.2} />
+                              </span>
+                              <div className="do-prof-map-stat-body">
+                                <em>Total Chambers</em>
+                                <strong>{opDisplayChambers.length} / {chamberLimit}</strong>
+                                <span className="do-prof-map-stat-sub">In Use</span>
+                              </div>
                             </div>
-                            <div className="do-map-summary-item">
-                              <span>Active clients</span>
-                              <strong className="do-map-tone-good">{mappingSummary.active}</strong>
+                            <div className="do-prof-map-stat-card ok">
+                              <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                <CheckCircle2 size={18} strokeWidth={2.2} />
+                              </span>
+                              <div className="do-prof-map-stat-body">
+                                <em>Active Clients</em>
+                                <strong>{mappingSummary.active}</strong>
+                                <span className="do-prof-map-stat-sub">Across Chambers</span>
+                              </div>
                             </div>
-                            <div className="do-map-summary-item">
-                              <span>Deactive clients</span>
-                              <strong className="do-map-tone-bad">{mappingSummary.deactive}</strong>
+                            <div className="do-prof-map-stat-card warn">
+                              <span className="do-prof-map-stat-icon" aria-hidden="true">
+                                <UserX size={18} strokeWidth={2.2} />
+                              </span>
+                              <div className="do-prof-map-stat-body">
+                                <em>Inactive Clients</em>
+                                <strong>{mappingSummary.deactive}</strong>
+                                <span className="do-prof-map-stat-sub">Not Mapped</span>
+                              </div>
                             </div>
                           </div>
 
-                          {opMasterEditMode ? (
-                            <div className="do-map-edit-banner">
-                              Editing master — add a chamber below, or edit/delete on each chamber card. Deletes have 30s Undo.
-                            </div>
-                          ) : (
-                            <div className="do-map-hint">
-                              Each block is one chamber. Use <strong>Edit Master</strong> on a chamber to add another chamber, update type, or manage clients.
-                            </div>
-                          )}
+                          <div className="do-prof-map-toolbar">
+                            <label className="do-prof-map-select">
+                              <MapPin size={14} />
+                              <select value={op.warehouse_name || ''} disabled title="Assigned warehouse">
+                                <option>{op.warehouse_name}</option>
+                              </select>
+                            </label>
+                            <label className="do-prof-map-select">
+                              <LayoutGrid size={14} />
+                              <select
+                                value={opMapChamberFilter}
+                                onChange={(e) => setOpMapChamberFilter(e.target.value)}
+                                aria-label="Filter by chamber"
+                              >
+                                <option value="all">All Chambers</option>
+                                {opDisplayChambers.map((ch) => (
+                                  <option key={ch.slotKey || ch.name} value={ch.name}>
+                                    {ch.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="do-prof-map-search">
+                              <Search size={14} />
+                              <input
+                                type="search"
+                                placeholder="Search client, chamber or warehouse..."
+                                value={opMapSearch}
+                                onChange={(e) => setOpMapSearch(e.target.value)}
+                                aria-label="Search mappings"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="do-prof-btn"
+                              style={{ height: 36, padding: '0 12px', fontSize: 12 }}
+                              onClick={() => handleExportOpChamberClientMappings(op)}
+                              disabled={opMappingsLoading || !op.warehouse_name}
+                              title="Export Excel sheet"
+                            >
+                              <Download size={14} />
+                              Export Excel Sheet
+                            </button>
+                            <button
+                              type="button"
+                              className="do-prof-btn primary"
+                              style={{ height: 36, padding: '0 14px', fontSize: 12 }}
+                              onClick={() => {
+                                setOpMappingsError('');
+                                setOpMappingsSuccess('');
+                                setOpMasterSessionChanges([]);
+                                setOpMasterEditChamberKey('__add__');
+                                setOpMasterEditMode(true);
+                              }}
+                            >
+                              <Plus size={14} />
+                              Add Mapping
+                            </button>
+                          </div>
 
-                          {opMasterEditMode ? (
-                            <div className="do-map-add-chamber">
-                              <div className="do-map-add-chamber-title">Add chamber</div>
-                              <div className="do-map-add-chamber-row">
+                          {opMasterEditChamberKey === '__add__' ? (
+                            <div className="do-prof-map-add-chamber">
+                              <div className="do-prof-map-add-chamber-head">
+                                <strong>Add chamber</strong>
+                                <div className="do-prof-map-edit-btns do-prof-map-edit-btns-end">
+                                  <button
+                                    type="button"
+                                    className="do-prof-map-action-btn cancel"
+                                    onClick={cancelOpMasterEdit}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="do-prof-map-action-btn done"
+                                    onClick={() => finishOpMasterEdit(op)}
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="do-prof-map-add-chamber-row">
                                 <input
                                   type="text"
-                                  placeholder={`e.g. Chamber ${(Number(op.chamber_limit) || 4) + 1}`}
+                                  placeholder={`e.g. Chamber ${chamberLimit + 1}`}
                                   value={opNewChamberName}
                                   onChange={(e) => setOpNewChamberName(e.target.value)}
                                   onKeyDown={(e) => {
@@ -11412,7 +12809,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 </select>
                                 <button
                                   type="button"
-                                  className="do-gmail-add-btn"
+                                  className="do-prof-btn primary"
                                   disabled={addingOpChamber}
                                   onClick={() => handleAddOpChamber(op)}
                                 >
@@ -11422,112 +12819,140 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             </div>
                           ) : null}
 
-                          {opDisplayChambers.length === 0 ? (
-                            <div className="do-gmail-empty">
-                              {opMasterEditMode
-                                ? 'No chambers yet — use Add chamber above.'
-                                : 'No chambers assigned yet. Open Edit Master to add one, or approve a DO add request from mobile.'}
+                          {filteredMeta.length === 0 ? (
+                            <div className="do-prof-empty">
+                              {opDisplayChambers.length === 0
+                                ? opMasterEditChamberKey === '__add__'
+                                  ? 'No chambers yet — use Add chamber above.'
+                                  : 'No chambers assigned yet. Open Add Mapping to add one.'
+                                : 'No chambers match this search or filter.'}
                             </div>
                           ) : (
-                            <div className="do-map-chambers">
-                              {opDisplayChambers.map((chamberRow, chamberIdx) => {
-                            const chamberNum = chamberRow.chamberNum;
+                            <div className="do-prof-map-chambers">
+                              {filteredMeta.map((meta) => {
+                            const {
+                              chamberRow,
+                              chamberIdx,
+                              activeClients,
+                              deactiveClients,
+                              chamberType,
+                              resolvedChamberId,
+                              typeEditKey
+                            } = meta;
                             const chamberName = chamberRow.name;
-                            const chamberAssignments = opMappings.filter((m) =>
-                              assignmentMatchesDisplayChamber(m, chamberRow)
-                            );
-                            const activeClients = uniqueClientsByName(chamberAssignments.filter((m) => !isDeactiveAssignment(m)));
-                            const activeNames = new Set(activeClients.map((m) => String(m.client_name || '').trim().toLowerCase()));
-                            const deactiveClients = uniqueClientsByName(
-                              chamberAssignments.filter((m) => isDeactiveAssignment(m) && !activeNames.has(String(m.client_name || '').trim().toLowerCase()))
-                            );
-                            const chamberType =
-                              activeClients[0]?.chamber_type ||
-                              deactiveClients[0]?.chamber_type ||
-                              (chamberNum != null ? opChamberTypeByNum[chamberNum] : null) ||
-                              (chamberNum != null ? newChamberTypes[chamberNum] : null) ||
-                              chamberRow.chamber_type ||
-                              'Frozen';
-                            const resolvedChamberId = chamberRow.id;
-                            const typeEditKey = chamberNum != null ? chamberNum : `id-${resolvedChamberId}`;
+                            const chamberNum = chamberRow.chamberNum;
+                            const chamberEditing = opMasterEditChamberKey === chamberRow.slotKey;
+                            const typeZone = pickComplianceZone(chamberType) || chamberType || 'Frozen';
                             const typeTone =
-                              String(chamberType).toLowerCase() === 'chilled'
+                              String(typeZone).toLowerCase() === 'chilled'
                                 ? 'chilled'
-                                : String(chamberType).toLowerCase() === 'dry'
+                                : String(typeZone).toLowerCase() === 'dry'
                                   ? 'dry'
-                                  : String(chamberType).toLowerCase() === 'other'
+                                  : String(typeZone).toLowerCase() === 'other'
                                     ? 'other'
                                     : 'frozen';
+                            const allClients = [
+                              ...activeClients.map((c) => ({ ...c, _status: 'active' })),
+                              ...deactiveClients.map((c) => ({ ...c, _status: 'inactive' }))
+                            ];
+                            const expanded = Boolean(opMapExpanded[chamberRow.slotKey]);
+                            const visibleClients = expanded
+                              ? allClients
+                              : allClients.slice(0, CLIENT_PREVIEW);
                             return (
-                              <div key={chamberRow.slotKey} className="do-map-chamber">
-                                <div className="do-map-chamber-head">
-                                  <div className="do-map-chamber-title">
-                                    <span className="do-map-chamber-index">{chamberIdx + 1}</span>
+                              <div key={chamberRow.slotKey} className="do-prof-map-chamber">
+                                <div className="do-prof-map-chamber-top">
+                                  <div className="do-prof-map-chamber-id">
+                                    <span className={`do-prof-map-index ${indexTone(chamberIdx)}`}>
+                                      {chamberIdx + 1}
+                                    </span>
                                     <div>
-                                      <strong>{chamberName}</strong>
-                                      <p>
-                                        {activeClients.length} active
-                                        {deactiveClients.length > 0 ? ` · ${deactiveClients.length} deactive` : ''}
+                                      <div className="do-prof-map-chamber-name">
+                                        <strong>{chamberName}</strong>
+                                      </div>
+                                      <p className="do-prof-map-chamber-sub">
+                                        <span className={`do-prof-map-type-box ${typeTone}`}>
+                                          Type: {typeZone}
+                                        </span>
+                                        <span className="do-prof-map-sub-sep">·</span>
+                                        Temp range: {tempForType(chamberType)}°C
+                                        <span className="do-prof-map-sub-sep">·</span>
+                                        Warehouse: {op.warehouse_name}
                                       </p>
                                     </div>
                                   </div>
-                                  <div className="do-map-chamber-meta">
-                                    <span className={`do-map-type-pill ${typeTone}`}>{chamberType}</span>
-                                    {opMasterEditMode ? (
-                                      <div className="do-map-edit-actions">
+                                  <div className="do-prof-map-chamber-metrics">
+                                    <div className="do-prof-map-metric active">
+                                      <Users size={13} />
+                                      <span>Active Clients</span>
+                                      <strong>{activeClients.length}</strong>
+                                    </div>
+                                    <div className="do-prof-map-metric inactive">
+                                      <UserX size={13} />
+                                      <span>Inactive Clients</span>
+                                      <strong>{deactiveClients.length}</strong>
+                                    </div>
+                                  </div>
+                                  <div className="do-prof-map-chamber-actions">
+                                    {chamberEditing ? (
+                                      <>
+                                        <span className="do-prof-map-status-btn active">Active</span>
                                         <button
                                           type="button"
-                                          className="do-gmail-text-btn"
-                                          onClick={cancelOpMasterEdit}
-                                        >
-                                          <X size={12} />
-                                          Cancel
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="do-gmail-text-btn active"
-                                          onClick={() => finishOpMasterEdit(op)}
-                                        >
-                                          <Check size={12} />
-                                          Done
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="do-gmail-chamber-delete"
+                                          className="do-prof-map-action-btn inactive"
                                           disabled={
                                             !!pendingMasterDelete &&
                                             pendingMasterDelete.kind === 'chamber' &&
                                             Number(pendingMasterDelete.chamberId) === Number(resolvedChamberId)
                                           }
-                                          title={`Delete ${chamberName}`}
+                                          title={`Mark ${chamberName} inactive`}
                                           onClick={() =>
                                             handleDeleteOpChamber(op, resolvedChamberId, chamberName)
                                           }
                                         >
-                                          <Trash2 size={13} />
-                                          Delete
+                                          Inactive
                                         </button>
-                                      </div>
+                                        <div className="do-prof-map-edit-btns do-prof-map-edit-btns-end">
+                                          <button
+                                            type="button"
+                                            className="do-prof-map-action-btn cancel"
+                                            onClick={cancelOpMasterEdit}
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="do-prof-map-action-btn done"
+                                            onClick={() => finishOpMasterEdit(op)}
+                                          >
+                                            Done
+                                          </button>
+                                        </div>
+                                      </>
                                     ) : (
-                                      <button
-                                        type="button"
-                                        className="do-gmail-text-btn"
-                                        onClick={() => {
-                                          setOpMappingsError('');
-                                          setOpMappingsSuccess('');
-                                          setOpMasterSessionChanges([]);
-                                          setOpMasterEditMode(true);
-                                        }}
-                                      >
-                                        <Edit size={12} />
-                                        Edit Master
-                                      </button>
+                                      <>
+                                        <span className="do-prof-map-status-btn active">Active</span>
+                                        <button
+                                          type="button"
+                                          className="do-prof-icon-btn"
+                                          title={`Edit ${chamberName}`}
+                                          onClick={() => {
+                                            setOpMappingsError('');
+                                            setOpMappingsSuccess('');
+                                            setOpMasterSessionChanges([]);
+                                            setOpMasterEditChamberKey(chamberRow.slotKey);
+                                            setOpMasterEditMode(true);
+                                          }}
+                                        >
+                                          <MoreVertical size={16} />
+                                        </button>
+                                      </>
                                     )}
                                   </div>
                                 </div>
 
-                                {opMasterEditMode ? (
-                                  <div className="do-gmail-type-row do-map-type-row">
+                                {chamberEditing ? (
+                                  <div className="do-prof-map-type-row">
                                     <span>Chamber type</span>
                                     <select
                                       value={
@@ -11550,7 +12975,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                     </select>
                                     <button
                                       type="button"
-                                      className="do-gmail-type-btn"
+                                      className="do-prof-btn"
+                                      style={{ height: 30, padding: '0 10px', fontSize: 11 }}
                                       disabled={
                                         updatingChamberTypeKey === typeEditKey ||
                                         String(
@@ -11573,29 +12999,50 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   </div>
                                 ) : null}
 
-                                <div className="do-map-clients">
-                                  {activeClients.length === 0 && deactiveClients.length === 0 && !opMasterEditMode ? (
-                                    <div className="do-map-empty-clients">No clients in this chamber yet.</div>
-                                  ) : null}
+                                <div className="do-prof-map-clients-block">
+                                  <div className="do-prof-map-clients-head">
+                                    <strong>
+                                      <Users size={14} />
+                                      Assigned Clients ({allClients.length})
+                                    </strong>
+                                    {allClients.length > CLIENT_PREVIEW ? (
+                                      <button
+                                        type="button"
+                                        className="do-prof-link"
+                                        onClick={() =>
+                                          setOpMapExpanded((prev) => ({
+                                            ...prev,
+                                            [chamberRow.slotKey]: !expanded
+                                          }))
+                                        }
+                                      >
+                                        {expanded
+                                          ? 'Show less'
+                                          : `View All (${allClients.length}) →`}
+                                      </button>
+                                    ) : null}
+                                  </div>
 
-                                  {activeClients.length > 0 ? (
-                                    <div className="do-map-client-group">
-                                      <div className="do-map-client-group-label">
-                                        <span className="do-map-dot good" />
-                                        Active clients
-                                      </div>
-                                      {activeClients.map((assign, aIdx) => (
+                                  {allClients.length === 0 && !chamberEditing ? (
+                                    <div className="do-prof-empty" style={{ padding: '12px 0' }}>
+                                      No clients in this chamber yet.
+                                    </div>
+                                  ) : (
+                                    <div className="do-prof-map-client-grid">
+                                      {visibleClients.map((assign, aIdx) => (
                                         <div
-                                          key={`active-${assign.client_name}-${aIdx}`}
-                                          className={`do-map-client-row${opMasterEditMode ? ' editing' : ''}`}
+                                          key={`${assign._status}-${assign.client_name}-${aIdx}`}
+                                          className={`do-prof-map-client-chip${assign._status === 'inactive' ? ' inactive' : ''}`}
                                         >
-                                          <span className="do-map-client-name">{assign.client_name}</span>
-                                          <span className="do-gmail-status-pill good">Active</span>
-                                          {opMasterEditMode ? (
+                                          <span>{assign.client_name}</span>
+                                          <em className={assign._status === 'inactive' ? 'bad' : 'ok'}>
+                                            · {assign._status === 'inactive' ? 'Inactive' : 'Active'}
+                                          </em>
+                                          {chamberEditing && assign._status === 'active' ? (
                                             <button
                                               type="button"
-                                              className="do-gmail-row-action"
-                                              title={`Remove ${assign.client_name}`}
+                                              className="do-prof-map-action-btn inactive sm"
+                                              title={`Mark ${assign.client_name} inactive`}
                                               onClick={() =>
                                                 handleDeleteOpMapping(
                                                   op,
@@ -11605,34 +13052,16 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                                 )
                                               }
                                             >
-                                              <Trash2 size={14} />
+                                              Inactive
                                             </button>
                                           ) : null}
                                         </div>
                                       ))}
                                     </div>
-                                  ) : null}
+                                  )}
 
-                                  {deactiveClients.length > 0 ? (
-                                    <div className="do-map-client-group">
-                                      <div className="do-map-client-group-label">
-                                        <span className="do-map-dot bad" />
-                                        Deactive clients
-                                      </div>
-                                      {deactiveClients.map((assign, aIdx) => (
-                                        <div
-                                          key={`deactive-${assign.client_name}-${aIdx}`}
-                                          className="do-map-client-row deactive"
-                                        >
-                                          <span className="do-map-client-name">{assign.client_name}</span>
-                                          <span className="do-gmail-status-pill muted">Deactive</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : null}
-
-                                  {opMasterEditMode ? (
-                                    <div className="do-gmail-add-row do-map-add-row">
+                                  {chamberEditing ? (
+                                    <div className="do-prof-map-add-client">
                                       <input
                                         type="text"
                                         placeholder={`Add client to ${chamberName}`}
@@ -11649,7 +13078,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                       />
                                       <button
                                         type="button"
-                                        className="do-gmail-add-btn"
+                                        className="do-prof-btn primary"
+                                        style={{ height: 34, padding: '0 12px', fontSize: 12 }}
                                         disabled={
                                           addingMappingChamberId === resolvedChamberId ||
                                           addingMappingChamberId === typeEditKey
@@ -11679,7 +13109,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     )}
 
                     {opProfileSection === 'master_activity' && (
-                    <div className="do-gmail-panel">
+                    <div className="do-gmail-panel do-prof-panel-wrap do-prof-card">
                       <div className="do-gmail-toolbar">
                         <div>
                           <h3 className="do-gmail-title">Master Setup Activity</h3>
@@ -11979,174 +13409,258 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 );
               })()
             ) : (
-              <div className="sa-op-gmail">
-                <section className="sa-op-card">
+              <div className="sa-op-gmail sa-reg-op" data-ui="register-operator-v2">
+                <div className="sa-reg-page-head">
+                  <button
+                    type="button"
+                    className="sa-reg-back"
+                    onClick={() => {
+                      if (editingOp) cancelEditOperator();
+                      else setActiveMenu('dashboard');
+                    }}
+                    title={editingOp ? 'Cancel edit' : 'Back to dashboard'}
+                    aria-label="Back"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                  <div>
+                    <h2 className="sa-op-title">
+                      {editingOp ? 'Modify Operator Profile' : 'Register New Data Operator'}
+                    </h2>
+                    <p className="sa-op-sub">
+                      {editingOp
+                        ? `Update ${editingOp.email || 'operator'} — warehouse and chamber limit apply to profile and logs.`
+                        : 'Add a new data operator to the ReeferON system. All fields are required.'}
+                    </p>
+                  </div>
+                </div>
+
+                <section className="sa-op-card sa-reg-details-card">
                   <div className="sa-op-card-head">
-                    <div className="sa-op-card-icon">{editingOp ? <Edit size={14} /> : <UserPlus size={14} />}</div>
-                    <div>
-                      <h2 className="sa-op-title">{editingOp ? 'Modify Operator Profile' : 'Register New Data Operator'}</h2>
-                      <p className="sa-op-sub">
-                        {editingOp
-                          ? editingOp.email
-                          : 'All fields are required. Warehouse / Data Access scopes this operator to one warehouse.'}
-                      </p>
+                    <div className="sa-op-card-icon">
+                      <User size={16} />
                     </div>
+                    <h2 className="sa-op-title">Operator Details</h2>
                   </div>
 
                   <form onSubmit={handleSaveOperator} className="sa-op-form">
-                    <div className="sa-op-form-grid">
+                    <div className="sa-op-form-grid cols-3">
                       <label className="sa-op-field">
                         <span>Full Name</span>
-                        <input
-                          type="text"
-                          name="op-full-name"
-                          inputMode="text"
-                          autoComplete="name"
-                          placeholder="e.g. John Doe"
-                          value={opFullName}
-                          onChange={(e) => setOpFullName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
-                          required
-                        />
-                      </label>
-
-                      <label className="sa-op-field">
-                        <span>Phone No.</span>
-                        <div className="sa-op-phone">
-                          <span className="sa-op-phone-code">+91</span>
+                        <div className="sa-reg-input">
+                          <User size={15} />
                           <input
-                            type="tel"
-                            name="op-phone"
-                            inputMode="numeric"
-                            autoComplete="tel"
-                            placeholder="9876543210"
-                            maxLength={10}
-                            value={opPhoneNo}
-                            onChange={(e) => setOpPhoneNo(toLocalTenDigitPhone(e.target.value))}
-                            pattern="[0-9]{10}"
-                            title="Enter a 10-digit mobile number"
+                            type="text"
+                            name="op-full-name"
+                            inputMode="text"
+                            autoComplete="name"
+                            placeholder="e.g. John Doe"
+                            value={opFullName}
+                            onChange={(e) => setOpFullName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
                             required
                           />
                         </div>
                       </label>
 
-                      <label className="sa-op-field sa-op-field-wide">
-                        <span>Email ID</span>
-                        <input
-                          type="email"
-                          name="op-email"
-                          inputMode="email"
-                          autoComplete="email"
-                          placeholder="e.g. operator@reeferon.com"
-                          value={opEmail}
-                          onChange={(e) => setOpEmail(e.target.value)}
-                          required
-                        />
-                      </label>
-
                       <label className="sa-op-field">
-                        <span>{editingOp ? 'Password (leave blank to keep)' : 'Password'}</span>
-                        <div className="sa-op-password">
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            name="op-password"
-                            autoComplete="new-password"
-                            placeholder={editingOp ? '••••••••' : 'Enter login password'}
-                            value={opPassword}
-                            onChange={(e) => setOpPassword(e.target.value)}
-                            required={!editingOp}
-                          />
-                          <button
-                            type="button"
-                            className="sa-op-password-toggle"
-                            onClick={() => setShowPassword((prev) => !prev)}
-                            title={showPassword ? 'Hide Password' : 'Show Password'}
-                          >
-                            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
+                        <span>Phone No.</span>
+                        <div className="sa-reg-input sa-reg-input-phone">
+                          <div className="sa-op-phone">
+                            <span className="sa-op-phone-code">+91</span>
+                            <input
+                              type="tel"
+                              name="op-phone"
+                              inputMode="numeric"
+                              autoComplete="tel"
+                              placeholder="9876543210"
+                              maxLength={10}
+                              value={opPhoneNo}
+                              onChange={(e) => setOpPhoneNo(toLocalTenDigitPhone(e.target.value))}
+                              pattern="[0-9]{10}"
+                              title="Enter a 10-digit mobile number"
+                              required
+                            />
+                          </div>
                         </div>
                       </label>
 
                       <label className="sa-op-field">
                         <span>Warehouse / Data Access</span>
-                        <div className="sa-op-suggest">
-                          <input
-                            name="op-warehouse"
-                            type="text"
-                            autoComplete="off"
-                            placeholder={
-                              warehouseSelectOptions.length === 0
-                                ? 'No warehouses in Master — add one first'
-                                : 'Type warehouse name…'
-                            }
-                            value={opWarehouseName}
-                            onChange={(e) => {
-                              setOpWarehouseName(e.target.value);
-                              setOpWarehouseSuggestOpen(true);
-                            }}
-                            onFocus={() => setOpWarehouseSuggestOpen(true)}
-                            onBlur={() => {
-                              window.setTimeout(() => setOpWarehouseSuggestOpen(false), 180);
-                            }}
-                            required
-                            disabled={warehouseSelectOptions.length === 0}
-                          />
-                          {opWarehouseSuggestOpen &&
-                            warehouseSelectOptions.length > 0 &&
-                            warehouseTypeSuggestions.length > 0 && (
-                              <ul className="sa-op-suggest-list" role="listbox">
-                                {warehouseTypeSuggestions.map((wh) => (
-                                  <li key={wh.value}>
-                                    <button
-                                      type="button"
-                                      className={
-                                        String(opWarehouseName).trim().toLowerCase() ===
-                                        String(wh.value).trim().toLowerCase()
-                                          ? 'is-active'
-                                          : undefined
-                                      }
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={() => {
-                                        setOpWarehouseName(wh.value);
-                                        setOpWarehouseSuggestOpen(false);
-                                      }}
-                                    >
-                                      <strong>{wh.value}</strong>
-                                      {wh.code ? <span>{wh.code}</span> : null}
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
+                        <div className="sa-reg-input">
+                          <Home size={15} />
+                          <div className="sa-op-suggest">
+                            <input
+                              name="op-warehouse"
+                              type="text"
+                              autoComplete="off"
+                              placeholder="Select warehouse / give access"
+                              value={opWarehouseName}
+                              onChange={(e) => {
+                                setOpWarehouseName(e.target.value);
+                                setOpWarehouseSuggestOpen(true);
+                              }}
+                              onFocus={() => setOpWarehouseSuggestOpen(true)}
+                              onBlur={() => {
+                                window.setTimeout(() => setOpWarehouseSuggestOpen(false), 180);
+                              }}
+                              required
+                              disabled={warehouseSelectOptions.length === 0}
+                            />
+                            {opWarehouseSuggestOpen &&
+                              warehouseSelectOptions.length > 0 &&
+                              warehouseTypeSuggestions.length > 0 && (
+                                <ul className="sa-op-suggest-list" role="listbox">
+                                  {warehouseTypeSuggestions.map((wh) => (
+                                    <li key={wh.value}>
+                                      <button
+                                        type="button"
+                                        className={
+                                          String(opWarehouseName).trim().toLowerCase() ===
+                                          String(wh.value).trim().toLowerCase()
+                                            ? 'is-active'
+                                            : undefined
+                                        }
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => {
+                                          setOpWarehouseName(wh.value);
+                                          setOpWarehouseSuggestOpen(false);
+                                        }}
+                                      >
+                                        <strong>{wh.value}</strong>
+                                        {wh.code ? <span>{wh.code}</span> : null}
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                          </div>
                         </div>
-                        <em>
-                          {warehouseSelectOptions.length === 0
-                            ? 'Go to Master Data → Warehouses, add the new place, then come back here.'
-                            : editingOp
-                              ? 'Type to filter Master warehouses, then pick one. Updates profile + past logs.'
-                              : 'Type to see suggestions from Master warehouses, then pick one.'}
-                        </em>
+                      </label>
+
+                      <label className="sa-op-field">
+                        <span>{editingOp ? 'Password (leave blank to keep)' : 'Password'}</span>
+                        <div className="sa-reg-input">
+                          <Lock size={15} />
+                          <div className="sa-op-password">
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              name="op-password"
+                              autoComplete="new-password"
+                              placeholder={editingOp ? '••••••••' : 'Enter login password'}
+                              value={opPassword}
+                              onChange={(e) => setOpPassword(e.target.value)}
+                              required={!editingOp}
+                            />
+                            <button
+                              type="button"
+                              className="sa-op-password-toggle"
+                              onClick={() => setShowPassword((prev) => !prev)}
+                              title={showPassword ? 'Hide Password' : 'Show Password'}
+                            >
+                              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                            </button>
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="sa-op-field">
+                        <span>Email ID</span>
+                        <div className="sa-reg-input">
+                          <Mail size={15} />
+                          <input
+                            type="email"
+                            name="op-email"
+                            inputMode="email"
+                            autoComplete="email"
+                            placeholder="e.g. operator@reeferon.com"
+                            value={opEmail}
+                            onChange={(e) => setOpEmail(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </label>
+
+                      <label className="sa-op-field">
+                        <span>Chamber Limit</span>
+                        <div className="sa-reg-input">
+                          <LayoutGrid size={15} />
+                          <select
+                            value={opChamberLimit}
+                            onChange={(e) => setOpChamberLimit(Number(e.target.value) || 4)}
+                            required
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
+                        </div>
                       </label>
 
                       <label className="sa-op-field">
                         <span>Total Chambers Assigned</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          placeholder="e.g. 4"
-                          value={opChamberLimit}
-                          onChange={(e) => setOpChamberLimit(e.target.value)}
-                          required
-                        />
+                        <div className="sa-reg-input">
+                          <LayoutGrid size={15} />
+                          <select
+                            value={opAssignedChambers}
+                            onChange={(e) => setOpAssignedChambers(Number(e.target.value) || 4)}
+                            required
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
+                        </div>
                       </label>
+
+                      <label className="sa-op-field">
+                        <span>Registration Date</span>
+                        <div className="sa-reg-input">
+                          <Calendar size={15} />
+                          <input
+                            type="text"
+                            className="sa-reg-readonly"
+                            readOnly
+                            value={
+                              editingOp?.created_at
+                                ? new Date(editingOp.created_at).toLocaleDateString('en-GB')
+                                : new Date().toLocaleDateString('en-GB')
+                            }
+                            aria-label="Registration date"
+                          />
+                        </div>
+                      </label>
+
+                      <label className="sa-op-field sa-reg-notes-field">
+                        <span>Notes / Remarks</span>
+                        <div className="sa-reg-textarea-wrap">
+                          <FileText size={15} />
+                          <textarea
+                            name="op-notes"
+                            rows={3}
+                            placeholder="Optional notes or special instructions..."
+                            value={opNotes}
+                            onChange={(e) => setOpNotes(e.target.value)}
+                          />
+                        </div>
+                      </label>
+
+                      {warehouseSelectOptions.length === 0 ? (
+                        <p className="sa-reg-field-note sa-op-sub">
+                          Go to Master Data → Warehouses, add a location, then pick it here.
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="sa-op-form-actions">
-                      {editingOp && (
+                      <button type="button" className="sa-reg-btn-reset" onClick={resetOperatorForm}>
+                        <RefreshCw size={14} />
+                        Reset
+                      </button>
+                      {editingOp ? (
                         <button type="button" className="sa-op-btn-text" onClick={cancelEditOperator}>
                           Cancel
                         </button>
-                      )}
+                      ) : null}
                       <button
                         type="submit"
                         className={`sa-op-btn-primary${editingOp ? ' update' : ''}`}
@@ -12157,37 +13671,67 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             <Loader2 size={14} className="spinner-icon" />
                             {opProcessStatus || 'Processing…'}
                           </>
-                        ) : (editingOp ? 'Update Operator' : 'Register Operator')}
+                        ) : (
+                          <>
+                            <UserPlus size={14} />
+                            {editingOp ? 'Update Operator' : 'Register Operator'}
+                          </>
+                        )}
                       </button>
                     </div>
                   </form>
                 </section>
 
-                <section className="sa-op-card sa-op-directory">
+                <section className="sa-op-card sa-op-directory sa-reg-dir-card">
                   {(() => {
+                    const avatarPalette = [
+                      { bg: '#dbeafe', color: '#1d4ed8' },
+                      { bg: '#ede9fe', color: '#6d28d9' },
+                      { bg: '#ccfbf1', color: '#0f766e' },
+                      { bg: '#ffedd5', color: '#c2410c' },
+                      { bg: '#fce7f3', color: '#be185d' },
+                      { bg: '#e0e7ff', color: '#3730a3' }
+                    ];
+                    const relativeAgo = (iso) => {
+                      if (!iso) return '';
+                      const t = new Date(iso).getTime();
+                      if (Number.isNaN(t)) return '';
+                      const days = Math.max(0, Math.floor((Date.now() - t) / 86400000));
+                      if (days === 0) return 'today';
+                      if (days === 1) return '1 day ago';
+                      if (days < 60) return `${days} days ago`;
+                      const months = Math.round(days / 30);
+                      return months === 1 ? '1 month ago' : `${months} months ago`;
+                    };
                     const filteredOperators = operators.filter((op) => {
                       const term = operatorSearch.toLowerCase();
                       return (
                         (op.full_name && op.full_name.toLowerCase().includes(term)) ||
                         (op.warehouse_name && op.warehouse_name.toLowerCase().includes(term)) ||
-                        (op.email && op.email.toLowerCase().includes(term))
+                        (op.email && op.email.toLowerCase().includes(term)) ||
+                        (op.phone_no && String(op.phone_no).includes(term.replace(/\D/g, '')))
                       );
                     });
                     return (
                       <>
-                        <div className="sa-op-dir-toolbar">
-                          <div>
-                            <h2 className="sa-op-title">Registered Operators Directory</h2>
-                            <p className="sa-op-sub">
-                              {filteredOperators.length} operator{filteredOperators.length === 1 ? '' : 's'} · search, view or edit profiles
-                            </p>
+                        <div className="sa-reg-dir-head">
+                          <div className="sa-reg-dir-title">
+                            <div className="sa-op-card-icon">
+                              <User size={16} />
+                            </div>
+                            <div>
+                              <h2 className="sa-op-title">Registered Operators Directory</h2>
+                              <p className="sa-op-sub">
+                                {filteredOperators.length} operator{filteredOperators.length === 1 ? '' : 's'}
+                              </p>
+                            </div>
                           </div>
                           <div className="sa-op-dir-tools">
-                            <label className="sa-op-search">
-                              <Search size={14} />
+                            <label className="sa-op-search sa-reg-search">
+                              <Search size={15} />
                               <input
                                 type="search"
-                                placeholder="Search mail-style: name, email, warehouse"
+                                placeholder="Search by name, email, warehouse..."
                                 value={operatorSearch}
                                 onChange={(e) => setOperatorSearch(e.target.value)}
                               />
@@ -12235,20 +13779,21 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           </div>
                         ) : (
                           <div className="sa-op-inbox">
-                            <table className="sa-op-dir-table">
+                            <table className="sa-op-dir-table sa-reg-dir-table">
                               <thead>
                                 <tr>
                                   <th>Operator</th>
                                   <th>Email</th>
-                                  <th>Warehouse</th>
                                   <th>Phone</th>
+                                  <th>Warehouse</th>
                                   <th>Chamber Limit</th>
                                   <th>Registered</th>
+                                  <th>Status</th>
                                   <th>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {filteredOperators.map((op) => {
+                                {filteredOperators.map((op, idx) => {
                                   if (!op) return null;
                                   const initials = String(op.full_name || op.email || 'DO')
                                     .split(/\s+/)
@@ -12256,6 +13801,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                     .slice(0, 2)
                                     .map((p) => p[0]?.toUpperCase())
                                     .join('') || 'DO';
+                                  const tone = avatarPalette[(Number(op.id) || idx) % avatarPalette.length];
+                                  const regDate = op.created_at
+                                    ? new Date(op.created_at).toLocaleDateString('en-GB')
+                                    : '—';
+                                  const ago = relativeAgo(op.created_at);
                                   return (
                                     <tr key={op.id} className="sa-op-dir-row">
                                       <td className="sa-op-dir-td-operator">
@@ -12265,7 +13815,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                           onClick={() => openOperatorProfile(op)}
                                           title="View DO Profile"
                                         >
-                                          <span className="sa-op-avatar">{initials}</span>
+                                          <span
+                                            className="sa-op-avatar sa-reg-avatar"
+                                            style={{ background: tone.bg, color: tone.color }}
+                                          >
+                                            {initials}
+                                          </span>
                                           <span className="sa-op-sender">
                                             <strong>{op.full_name || 'Unnamed operator'}</strong>
                                             <em>#{op.id}</em>
@@ -12275,29 +13830,62 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                       <td className="sa-op-dir-td-email" title={op.email || ''}>
                                         {op.email || '—'}
                                       </td>
-                                      <td className="sa-op-dir-td-wh" title={op.warehouse_name || ''}>
-                                        {op.warehouse_name || 'Not configured'}
-                                      </td>
                                       <td className="sa-op-dir-td-phone">
                                         {op.phone_no ? formatIndiaPhoneDisplay(op.phone_no) : '—'}
                                       </td>
+                                      <td className="sa-op-dir-td-wh" title={op.warehouse_name || ''}>
+                                        <span className="sa-reg-wh-cell">
+                                          <Home size={13} />
+                                          {op.warehouse_name || 'Not configured'}
+                                        </span>
+                                      </td>
                                       <td className="sa-op-dir-td-limit">
-                                        {op.chamber_limit || 4}
+                                        <span className="sa-reg-limit-pill">{op.chamber_limit || 4}</span>
                                       </td>
                                       <td className="sa-op-dir-td-date">
-                                        {op.created_at ? new Date(op.created_at).toLocaleDateString('en-GB') : '—'}
+                                        <span className="sa-reg-date-cell">
+                                          {regDate}
+                                          {ago ? <span className="sa-reg-ago">, {ago}</span> : null}
+                                        </span>
+                                      </td>
+                                      <td className="sa-op-dir-td-status">
+                                        <span className="sa-reg-status">
+                                          <span className="sa-reg-status-dot" />
+                                          Active
+                                        </span>
                                       </td>
                                       <td className="sa-op-dir-td-actions">
-                                        <div className="sa-op-row-actions">
+                                        <div className="sa-op-row-actions sa-reg-row-actions">
                                           <button type="button" className="sa-op-icon-btn" onClick={() => openOperatorProfile(op)} title="View">
                                             <Eye size={14} />
                                           </button>
                                           <button type="button" className="sa-op-icon-btn" onClick={() => startEditOperator(op)} title="Edit">
                                             <Edit size={14} />
                                           </button>
-                                          <button type="button" className="sa-op-icon-btn danger" onClick={() => handleDeleteOperator(op)} title="Revoke">
-                                            <Trash2 size={14} />
-                                          </button>
+                                          <div className="sa-reg-more-wrap">
+                                            <button
+                                              type="button"
+                                              className="sa-op-icon-btn"
+                                              title="More"
+                                              onClick={() => setOpDirMenuId((cur) => (cur === op.id ? null : op.id))}
+                                            >
+                                              <MoreVertical size={14} />
+                                            </button>
+                                            {opDirMenuId === op.id ? (
+                                              <div className="sa-reg-more-menu">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setOpDirMenuId(null);
+                                                    handleDeleteOperator(op);
+                                                  }}
+                                                >
+                                                  <Trash2 size={13} />
+                                                  Revoke access
+                                                </button>
+                                              </div>
+                                            ) : null}
+                                          </div>
                                         </div>
                                       </td>
                                     </tr>
@@ -12316,55 +13904,80 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           </div>
         )}
 
+        {/* --- Menu: Customer reports & notes (mobile report inbox, admin replies) --- */}
         {activeMenu === 'customer_reports' && (
           <div className="sa-um">
-            <div className="sa-gmail-tabs">
-              <button
-                type="button"
-                className={`sa-gmail-tab${customerReportsTab === 'issues' ? ' active' : ''}`}
-                onClick={() => {
-                  setCustomerReportsTab('issues');
-                  loadCustomerReportsData();
-                }}
-              >
-                <MessageSquareWarning size={14} />
-                Issue reports
-              </button>
-              <button
-                type="button"
-                className={`sa-gmail-tab${customerReportsTab === 'notes' ? ' active' : ''}`}
-                onClick={() => {
-                  setCustomerReportsTab('notes');
-                  loadSubAdminsData();
-                  loadNoteThreads();
-                  loadNoteMessages(selectedNoteCustomer || 'All');
-                }}
-              >
-                <MessageSquare size={14} />
-                Notes & updates
-              </button>
-            </div>
+            <div className="sa-op-gmail sa-reg-op sa-cr-reg" data-ui="customer-reports-v2">
+              <div className="sa-reg-page-head">
+                <button
+                  type="button"
+                  className="sa-reg-back"
+                  onClick={() => setActiveMenu('dashboard')}
+                  title="Back to dashboard"
+                  aria-label="Back"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div>
+                  <h2 className="sa-op-title">Customer Reports</h2>
+                  <p className="sa-op-sub">
+                    Review customer issue reports and send notes & updates to the mobile portal.
+                  </p>
+                </div>
+              </div>
+
+              <div className="sa-cr-reg-tabs">
+                <button
+                  type="button"
+                  className={`sa-cr-reg-tab${customerReportsTab === 'issues' ? ' active' : ''}`}
+                  onClick={() => {
+                    setCustomerReportsTab('issues');
+                    loadCustomerReportsData();
+                  }}
+                >
+                  <MessageSquareWarning size={14} />
+                  Issue reports
+                </button>
+                <button
+                  type="button"
+                  className={`sa-cr-reg-tab${customerReportsTab === 'notes' ? ' active' : ''}`}
+                  onClick={() => {
+                    setCustomerReportsTab('notes');
+                    loadSubAdminsData();
+                    loadNoteThreads();
+                    loadNoteMessages(selectedNoteCustomer || 'All');
+                  }}
+                >
+                  <MessageSquare size={14} />
+                  Notes & updates
+                </button>
+              </div>
 
             {customerReportsTab === 'notes' ? (
-              <div className="sa-op-gmail">
-                <section className="sa-op-card">
-                  <div className="sa-op-dir-toolbar">
-                    <div>
-                      <h2 className="sa-op-title">Customer Notes & Updates</h2>
-                      <p className="sa-op-sub">
-                        Chat-style notes to customers. They see these on mobile Dashboard → Updates.
-                      </p>
+              <section className="sa-op-card sa-reg-dir-card">
+                  <div className="sa-reg-dir-head">
+                    <div className="sa-reg-dir-title">
+                      <div className="sa-op-card-icon">
+                        <MessageSquare size={16} />
+                      </div>
+                      <div>
+                        <h2 className="sa-op-title">Customer Notes & Updates</h2>
+                        <p className="sa-op-sub">
+                          Chat-style notes — customers see these on mobile Dashboard → Updates.
+                        </p>
+                      </div>
                     </div>
                     <div className="sa-op-dir-tools">
                       <button
                         type="button"
-                        className="sa-op-btn-text"
+                        className="sa-reg-btn-reset"
                         onClick={() => {
                           loadNoteThreads();
                           loadNoteMessages(selectedNoteCustomer || 'All');
                         }}
                         disabled={loadingNotes}
                       >
+                        <RefreshCw size={14} />
                         {loadingNotes ? 'Refreshing…' : 'Refresh'}
                       </button>
                     </div>
@@ -12477,24 +14090,27 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       </div>
                     </div>
                   </div>
-                </section>
-              </div>
+              </section>
             ) : (
-              <div className="sa-op-gmail">
-                <section className="sa-op-card sa-op-directory">
-                  <div className="sa-op-dir-toolbar">
-                    <div>
-                      <h2 className="sa-op-title">Customer Reports</h2>
-                      <p className="sa-op-sub">
-                        {customerReports.length} issue{customerReports.length === 1 ? '' : 's'} · customer, Ref No., and message
-                      </p>
+              <section className="sa-op-card sa-op-directory sa-reg-dir-card">
+                  <div className="sa-reg-dir-head">
+                    <div className="sa-reg-dir-title">
+                      <div className="sa-op-card-icon">
+                        <MessageSquareWarning size={16} />
+                      </div>
+                      <div>
+                        <h2 className="sa-op-title">Issue Reports Directory</h2>
+                        <p className="sa-op-sub">
+                          {customerReports.length} issue{customerReports.length === 1 ? '' : 's'}
+                        </p>
+                      </div>
                     </div>
                     <div className="sa-op-dir-tools">
-                      <label className="sa-op-search">
-                        <Search size={14} />
+                      <label className="sa-op-search sa-reg-search">
+                        <Search size={15} />
                         <input
                           type="search"
-                          placeholder="Search mail-style: name, email, Ref No., issue"
+                          placeholder="Search by name, email, Ref No., issue..."
                           value={customerReportSearch}
                           onChange={(e) => setCustomerReportSearch(e.target.value)}
                           onKeyDown={(e) => {
@@ -12503,7 +14119,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         />
                       </label>
                       <select
-                        className="sa-op-filter"
+                        className="sa-op-filter sa-cr-reg-filter"
                         value={customerReportStatusFilter}
                         onChange={(e) => setCustomerReportStatusFilter(e.target.value)}
                       >
@@ -12540,7 +14156,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     </div>
                   ) : (
                     <div className="sa-op-inbox">
-                      {customerReports.map((report) => {
+                      {customerReports.map((report, idx) => {
                         if (!report) return null;
                         const initials = String(report.customer_name || report.customer_email || 'CU')
                           .split(/\s+/)
@@ -12548,13 +14164,25 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           .slice(0, 2)
                           .map((p) => p[0]?.toUpperCase())
                           .join('') || 'CU';
+                        const avatarPalette = [
+                          { bg: '#dbeafe', color: '#1d4ed8' },
+                          { bg: '#ede9fe', color: '#6d28d9' },
+                          { bg: '#ccfbf1', color: '#0f766e' },
+                          { bg: '#ffedd5', color: '#c2410c' }
+                        ];
+                        const tone = avatarPalette[(Number(report.id) || idx) % avatarPalette.length];
                         const statusKey =
                           report.status === 'In Progress' ? 'progress'
                             : String(report.status || 'closed').toLowerCase();
                         return (
                           <div key={report.id} className="sa-op-inbox-row">
                             <div className="sa-op-inbox-main sa-cr-report-main">
-                              <span className="sa-op-avatar">{initials}</span>
+                              <span
+                                className="sa-op-avatar sa-reg-avatar"
+                                style={{ background: tone.bg, color: tone.color }}
+                              >
+                                {initials}
+                              </span>
                               <span className="sa-op-sender">
                                 <strong>{report.customer_name || 'Unnamed customer'}</strong>
                                 <em>{report.customer_email || '—'}</em>
@@ -12604,9 +14232,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       })}
                     </div>
                   )}
-                </section>
-              </div>
+              </section>
             )}
+            </div>
           </div>
         )}
           </>

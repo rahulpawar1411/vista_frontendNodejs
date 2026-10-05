@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 
+/**
+ * WHAT: Shows a reference number with a copy-to-clipboard button.
+ * WHY: DOs share ref numbers with support; copy reduces typos.
+ * HOW: navigator.clipboard.writeText; brief check icon feedback.
+ */
 export default function CopyableRef({ value, className = '' }) {
   const [copied, setCopied] = useState(false);
   const text = value != null && value !== '' ? String(value) : '';

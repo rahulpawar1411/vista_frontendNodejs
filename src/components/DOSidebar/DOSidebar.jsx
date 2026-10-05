@@ -9,6 +9,11 @@ import { Thermometer, ArrowDownLeft, ArrowUpRight, Plus, LogOut, History, Bell, 
 import Logo from '../Logo/Logo';
 import './DOSidebar.css'; // Paired CSS file
 
+/**
+ * WHAT: Left navigation for Data Operator modules (Daily, Inward, Outward, History, …).
+ * WHY: Persistent menu keeps warehouse workflows one click away.
+ * HOW: setActiveDOMenu on click; highlights activeDOMenu; shows alert badge on Notifications.
+ */
 export default function DOSidebar({ user, activeDOMenu, setActiveDOMenu, onLogout, hasNotificationAlert = false }) {
   return (
     <aside className="do-sidebar desktop-only">

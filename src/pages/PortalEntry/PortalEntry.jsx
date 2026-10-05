@@ -9,6 +9,11 @@ import { Thermometer, ShieldCheck, ArrowRight, Truck, LayoutDashboard } from 'lu
 import Logo from '../../components/Logo/Logo';
 import './PortalEntry.css'; // Paired CSS file
 
+/**
+ * WHAT: Landing cards to pick Admin, DO, or Customer window (when enabled).
+ * WHY: One login can theoretically reach different portals; this is the chooser UI.
+ * HOW: Buttons call onSelectWindow with a window key; App updates URL and selectedWindow.
+ */
 export default function PortalEntry({ onSelectWindow }) {
   return (
     <div className="portal-entry-page">

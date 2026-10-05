@@ -25,6 +25,11 @@ const DONotificationsView = lazy(() => import('./pages/DONotificationsView/DONot
 const SuperAdminSecureWindow = lazy(() => import('./pages/SuperAdminSecureWindow/SuperAdminSecureWindow'));
 const SubAdminSecureWindow = lazy(() => import('./pages/SubAdminSecureWindow/SubAdminSecureWindow'));
 
+/**
+ * WHAT: Spinner shown while a lazy-loaded page chunk is downloading.
+ * WHY: Large admin screens are code-split; users need feedback during load.
+ * HOW: Simple centered spinner with accessible "Loading…" text.
+ */
 function PageLoader() {
   return (
     <div className="page-lazy-loader" role="status" aria-live="polite">
@@ -36,6 +41,11 @@ function PageLoader() {
   );
 }
 
+/**
+ * WHAT: Root app — login gate, role routing, and lazy-loaded main windows.
+ * WHY: One entry decides who sees Super Admin vs portal vs mobile-only message.
+ * HOW: Reads user from localStorage; super_admin gets SuperAdminSecureWindow; others blocked or login.
+ */
 export default function App() {
   const [user, setUser] = useState(() => {
     try {

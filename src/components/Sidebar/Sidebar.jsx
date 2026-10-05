@@ -3,6 +3,11 @@ import { Home, Users, Plus, Thermometer, ArrowDownLeft, ArrowUpRight, Settings, 
 import Logo from '../Logo/Logo';
 import './Sidebar.css'; // Paired CSS file
 
+/**
+ * WHAT: Desktop left menu for legacy sales admin (Dashboard, Leads, Temp, Settings).
+ * WHY: Matches Header mobile drawer items on large screens.
+ * HOW: setActiveTab per button; activeTab gets highlighted styling.
+ */
 export default function Sidebar({ activeTab, setActiveTab, onLogout }) {
   return (
     <aside className="app-sidebar desktop-only">

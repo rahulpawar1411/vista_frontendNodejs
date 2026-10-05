@@ -9,6 +9,11 @@ import { ArrowLeft, Phone, MessageCircle, Mail, Trash2 } from 'lucide-react';
 import { updateLead, deleteLead } from '../../services/api';
 import './LeadDetails.css'; // Paired CSS file
 
+/**
+ * WHAT: Full view of one lead with status update and delete.
+ * WHY: Reps need one screen to edit contact info and move pipeline stage.
+ * HOW: updateLead / deleteLead API; onLeadUpdated refreshes parent list.
+ */
 export default function LeadDetails({ lead, onBack, onLeadUpdated }) {
   const [status, setStatus] = useState(lead.status || 'New');
   const [updating, setUpdating] = useState(false);

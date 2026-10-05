@@ -10,6 +10,11 @@ import Logo from '../../components/Logo/Logo';
 import { API_BASE_URL, setAuthToken, fetchHealthSnapshot } from '../../services/api';
 import './Login.css';
 
+/**
+ * WHAT: Email/password login form for the web portal (Super Admin focus).
+ * WHY: Protected API routes need a session before any admin screen loads.
+ * HOW: POST /auth/login, save token and user, reject mobile-only roles with a clear message.
+ */
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

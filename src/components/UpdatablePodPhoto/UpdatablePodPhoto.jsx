@@ -8,6 +8,11 @@ import { updateInwardPodPhoto, updateOutwardPodPhoto } from '../../services/api'
 import FallbackImg from '../FallbackImg/FallbackImg';
 import './UpdatablePodPhoto.css';
 
+/**
+ * WHAT: POD photo thumbnail with camera button to upload a replacement.
+ * WHY: DO may fix a bad POD without waiting for Super Admin edit approval.
+ * HOW: PUT pod-photo endpoint via updateInwardPodPhoto or updateOutwardPodPhoto by type.
+ */
 export default function UpdatablePodPhoto({
   type, // 'inward' | 'outward'
   recordId,

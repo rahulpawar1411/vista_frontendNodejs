@@ -11,6 +11,11 @@ import LeadCard from '../../components/LeadCard/LeadCard';
 import { fetchDashboardStats, fetchLeads } from '../../services/api';
 import './Dashboard.css'; // Paired CSS file
 
+/**
+ * WHAT: Sales dashboard with lead stats and quick navigation widgets.
+ * WHY: Super Admin legacy sales view summarizes pipeline at a glance.
+ * HOW: fetchDashboardStats and fetchLeads on mount; StatCards and links call setActiveTab.
+ */
 export default function Dashboard({ setActiveTab, setSelectedLead }) {
   const [stats, setStats] = useState({
     totalLeads: 0,

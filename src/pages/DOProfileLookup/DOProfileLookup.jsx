@@ -18,6 +18,11 @@ import {
 import UpdatablePodPhoto from '../../components/UpdatablePodPhoto/UpdatablePodPhoto';
 import './DOProfileLookup.css';
 
+/**
+ * WHAT: Find a log by reference number and open full detail (photos, temps, metadata).
+ * WHY: Support staff and DOs need quick lookup without scrolling entire history.
+ * HOW: Search API then LogProfileDetailModal; edit buttons route data to monitor screens.
+ */
 export default function DOProfileLookup({ setActiveDOMenu, setEditInwardData, setEditOutwardData, setEditDailyData }) {
   const formatDuration = (hoursStr, minsStr) => {
     const hours = parseInt(hoursStr) || 0;

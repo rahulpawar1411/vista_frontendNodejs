@@ -12,6 +12,11 @@ function parsePhotoCaptureMetadata(raw) {
   }
 }
 
+/**
+ * WHAT: Lists capture time and GPS for each photo field on a log.
+ * WHY: Detail modals must show audit metadata stored in JSON alongside images.
+ * HOW: Parses metadata object/array and renders labels with PhotoGpsLink where GPS exists.
+ */
 export default function PhotoCaptureMetaPanel({ metadata }) {
   const meta = parsePhotoCaptureMetadata(metadata);
   if (!meta || typeof meta !== 'object') return null;

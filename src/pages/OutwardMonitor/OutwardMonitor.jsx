@@ -14,6 +14,11 @@ import { resolveMediaSrc } from '../../utils/resolveMediaSrc';
 import exifr from 'exifr';
 import '../InwardMonitor/InwardMonitor.css';
 
+/**
+ * WHAT: Form to log outward (dispatch) shipments with photos and temperatures.
+ * WHY: Outbound loads need the same audit trail as inward for customers and regulators.
+ * HOW: Multipart FormData POST to outward-logs; edit flow mirrors InwardMonitor.
+ */
 export default function OutwardMonitor({ editData, setEditData, setActiveDOMenu }) {
   const getLocalTodayStr = () => {
     const today = new Date();

@@ -1,6 +1,11 @@
 import React from 'react';
 import { formatPhotoGpsForExport } from '../../utils/photoCaptureExport';
 
+/**
+ * WHAT: Google Maps URL for a latitude/longitude pair.
+ * WHY: Shared by PhotoGpsLink and other components that need map links.
+ * HOW: Returns null if coordinates are not valid numbers.
+ */
 export function buildMapsUrl(lat, lng) {
   const latitude = parseFloat(lat);
   const longitude = parseFloat(lng);
@@ -8,6 +13,11 @@ export function buildMapsUrl(lat, lng) {
   return `https://www.google.com/maps?q=${latitude},${longitude}`;
 }
 
+/**
+ * WHAT: Clickable link that opens Google Maps at photo capture coordinates.
+ * WHY: Auditors verify where a POD or seal photo was taken.
+ * HOW: Builds maps URL from lat/lng; shows accuracy text when provided.
+ */
 export default function PhotoGpsLink({ lat, lng, accuracy, className = '' }) {
   const text = formatPhotoGpsForExport(lat, lng, accuracy);
   const mapsUrl = buildMapsUrl(lat, lng);

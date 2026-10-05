@@ -10,6 +10,11 @@ import { Clock, Menu, X, Thermometer, ArrowDownLeft, ArrowUpRight, ChevronRight,
 import Logo from '../Logo/Logo';
 import './DOHeader.css'; // Paired CSS file
 
+/**
+ * WHAT: Top bar for the Data Operator web shell (title, menu, notifications dot).
+ * WHY: DO screens share one header across Inward, Outward, History, etc.
+ * HOW: Shows activeTitle; mobile menu mirrors DOSidebar items; red dot when hasNotificationAlert.
+ */
 export default function DOHeader({ user, activeTitle, activeDOMenu, setActiveDOMenu, onLogout, hasNotificationAlert = false }) {
   const [timeState, setTimeState] = useState(new Date());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

@@ -1,0 +1,515 @@
+        {activeMenu === 'dashboard' && (
+          <div className="sa-op-gmail sa-dash">
+            <section className="sa-op-card">
+              <div className="sa-op-dir-toolbar">
+                <div className="sa-dash-welcome">
+                  <span className="sa-op-avatar sa-dash-avatar">
+                    <ShieldCheck size={14} />
+                  </span>
+                  <div>
+                    <h2 className="sa-op-title">Control Center Dashboard</h2>
+                    <p className="sa-op-sub">
+                      Super Admin overview of operators, daily chamber tasks, warehouses and activity
+                    </p>
+                  </div>
+                </div>
+                <div className="sa-dash-online">
+                  <span className="sa-dash-online-dot" />
+                  System monitoring online
+                </div>
+              </div>
+
+              <div className="sa-dash-stats">
+                <button
+                  type="button"
+                  className="sa-dash-stat"
+                  onClick={() => setActiveMenu('data_operators')}
+                >
+                  <span className="sa-dash-stat-top">
+                    <em>Operators</em>
+                    <User size={14} />
+                  </span>
+                  <strong>{operators.length}</strong>
+                  <span>Registered Data Operators</span>
+                </button>
+                <div className="sa-dash-stat">
+                  <span className="sa-dash-stat-top">
+                    <em>Warehouses</em>
+                    <Database size={14} />
+                  </span>
+                  <strong>{warehousesList.length}</strong>
+                  <span>Locations Managed</span>
+                </div>
+                <button
+                  type="button"
+                  className="sa-dash-stat"
+                  onClick={() => setActiveMenu('customers')}
+                >
+                  <span className="sa-dash-stat-top">
+                    <em>Customers</em>
+                    <ShieldCheck size={14} />
+                  </span>
+                  <strong>{subAdmins.length}</strong>
+                  <span>Registered Customers</span>
+                </button>
+                {hasPendingRequests ? (
+                  <button
+                    type="button"
+                    className="sa-dash-stat alert"
+                    onClick={() => {
+                      setActiveMenu('activity_logs');
+                      setAuditSubTab('permission_log');
+                    }}
+                  >
+                    <span className="sa-dash-stat-top">
+                      <em>Permissions</em>
+                      <Lock size={14} />
+                    </span>
+                    <strong>{dashboardPendingRequests.length}</strong>
+                    <span>Pending Role Requests</span>
+                  </button>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="sa-op-card">
+              <div className="sa-op-dir-toolbar">
+                <div>
+                  <h2 className="sa-op-title">Operational Shortcuts</h2>
+                  <p className="sa-op-sub">Jump to common Super Admin actions</p>
+                </div>
+              </div>
+              <div className="sa-dash-shortcuts">
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('data_operators')}
+                >
+                  <UserPlus size={14} />
+                  <span>Register Operator</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sa-dash-shortcut${hasPendingRequests ? ' alert' : ''}`}
+                  onClick={() => {
+                    setActiveMenu('activity_logs');
+                    setAuditSubTab('permission_log');
+                  }}
+                >
+                  <Lock size={14} />
+                  <span>Permission Requests</span>
+                  {hasPendingRequests ? <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} /> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`sa-dash-shortcut${hasNewDOChanges ? ' alert' : ''}`}
+                  onClick={() => {
+                    setActiveMenu('activity_logs');
+                    setAuditSubTab('do_changes');
+                  }}
+                >
+                  <Activity size={14} />
+                  <span>DO Operations Log</span>
+                  {hasNewDOChanges ? <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} /> : null}
+                </button>
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('history_logs')}
+                >
+                  <History size={14} />
+                  <span>System Logs</span>
+                </button>
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('profile_lookup')}
+                >
+                  <Search size={14} />
+                  <span>Profile Lookup</span>
+                </button>
+                <button
+                  type="button"
+                  className="sa-dash-shortcut"
+                  onClick={() => setActiveMenu('customer_reports')}
+                >
+                  <MessageSquareWarning size={14} />
+                  <span>Customer Reports</span>
+                </button>
+              </div>
+            </section>
+
+            <section className="sa-op-card sa-dash-tasks">
+              <div className="sa-dash-task-head">
+                <div className="sa-dash-task-head-left">
+                  <span className="sa-dash-task-icon">
+                    <ClipboardCheck size={15} />
+                  </span>
+                  <div className="sa-dash-task-titles">
+                    <strong>DO tasks</strong>
+                    <span>
+                      {doTaskOverview?.today
+                        ? new Date(`${doTaskOverview.today}T12:00:00`).toLocaleDateString('en-GB', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric'
+                          })
+                        : doTaskDate === localDateStr()
+                          ? 'Today'
+                          : doTaskDate}
+                      {' · Morning + Evening'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="sa-op-btn-text"
+                  onClick={() => loadDoTaskOverview(doTaskDate)}
+                  disabled={loadingDoTasks}
+                >
+                  {loadingDoTasks ? <Loader2 size={12} className="sa-spin" /> : null}
+                  {loadingDoTasks ? 'Loading' : 'Refresh'}
+                </button>
+              </div>
+
+              <div className="sa-dash-task-tools">
+                <label className="sa-dash-task-date-wrap" title="Filter by date">
+                  <Calendar size={13} />
+                  <input
+                    className="sa-op-filter sa-dash-task-date"
+                    type="date"
+                    value={doTaskDate}
+                    max={localDateStr()}
+                    onChange={(e) => {
+                      const val = e.target.value || localDateStr();
+                      setDoTaskDate(val);
+                      loadDoTaskOverview(val);
+                    }}
+                    aria-label="DO tasks date"
+                  />
+                </label>
+                {doTaskDate !== localDateStr() ? (
+                  <button
+                    type="button"
+                    className="sa-dash-task-today-btn"
+                    onClick={() => {
+                      const today = localDateStr();
+                      setDoTaskDate(today);
+                      loadDoTaskOverview(today);
+                    }}
+                    disabled={loadingDoTasks}
+                  >
+                    Today
+                  </button>
+                ) : null}
+                <div className="sa-dash-task-filters">
+                  {[
+                    { id: 'all', label: 'All' },
+                    { id: 'pending', label: 'Pending' },
+                    { id: 'overdue', label: 'Overdue' },
+                    { id: 'done', label: 'Done' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`sa-dash-task-filter${doTaskFilter === tab.id ? ' active' : ''}`}
+                      onClick={() => setDoTaskFilter(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="sa-dash-task-search">
+                  <Search size={13} />
+                  <input
+                    type="search"
+                    value={doTaskSearch}
+                    onChange={(e) => setDoTaskSearch(e.target.value)}
+                    placeholder="Search DO or warehouse"
+                  />
+                </label>
+              </div>
+
+              <div className="sa-dash-task-metrics">
+                <div className="sa-dash-task-metric done" title="Morning completed / expected">
+                  <span>Morning</span>
+                  <strong>
+                    {Number(doTaskSummary.morning_completed) || 0}
+                    <i>/{Number(doTaskSummary.morning_expected) || 0}</i>
+                  </strong>
+                </div>
+                <div className="sa-dash-task-metric evening" title="Evening completed / expected">
+                  <span>Evening</span>
+                  <strong>
+                    {Number(doTaskSummary.evening_completed) || 0}
+                    <i>/{Number(doTaskSummary.evening_expected) || 0}</i>
+                  </strong>
+                </div>
+                <div className="sa-dash-task-metric overdue" title="Missing logs in prior 5 days">
+                  <span>Overdue</span>
+                  <strong>{Number(doTaskSummary.overdue) || 0}</strong>
+                </div>
+              </div>
+
+              <div className="sa-dash-task-metrics sa-dash-task-metrics-io" title="Inward / Outward log counts from database">
+                <div className="sa-dash-task-metric inward" title="All inward records till now (all DOs)">
+                  <span>Total Inward</span>
+                  <strong>{Number(doTaskSummary.total_inward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric outward" title="All outward records till now (all DOs)">
+                  <span>Total Outward</span>
+                  <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric inward-today" title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
+                  <span>{doTaskDate === localDateStr() ? 'Today Inward' : 'Day Inward'}</span>
+                  <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
+                </div>
+                <div className="sa-dash-task-metric outward-today" title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'} (all DOs)`}>
+                  <span>{doTaskDate === localDateStr() ? 'Today Outward' : 'Day Outward'}</span>
+                  <strong>{Number(doTaskSummary.today_outward) || 0}</strong>
+                </div>
+              </div>
+
+              {doTaskError ? (
+                <div className="sa-op-banner-wrap">
+                  <LoadErrorBanner
+                    message={doTaskError}
+                    onRetry={() => loadDoTaskOverview(doTaskDate)}
+                    onDismiss={() => setDoTaskError('')}
+                  />
+                </div>
+              ) : null}
+
+              {loadingDoTasks && !doTaskOverview ? (
+                <div className="sa-dash-task-empty">Loading DO tasks…</div>
+              ) : doTaskRows.length === 0 ? (
+                <div className="sa-dash-task-empty">
+                  {doTaskSearch || doTaskFilter !== 'all'
+                    ? 'No operators match this filter.'
+                    : 'No data operators yet.'}
+                </div>
+              ) : (
+                <div className="sa-dash-task-list">
+                  {!(Number(doTaskSummary.morning_completed) || Number(doTaskSummary.evening_completed)) ? (
+                    <div className="sa-dash-task-hint">
+                      No submissions on this date. Choose another day to see completed Morning / Evening counts.
+                    </div>
+                  ) : null}
+                  <table className="sa-dash-task-table">
+                    <thead>
+                      <tr>
+                        <th className="sa-dash-task-th-status" aria-label="Status" />
+                        <th>Operator</th>
+                        <th>Warehouse</th>
+                        <th>Morning</th>
+                        <th>Evening</th>
+                        <th>Overdue</th>
+                        <th title={`Inward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
+                          {doTaskDate === localDateStr() ? 'Today In' : 'Day In'}
+                        </th>
+                        <th title={`Outward on ${doTaskOverview?.today || doTaskDate || 'selected day'}`}>
+                          {doTaskDate === localDateStr() ? 'Today Out' : 'Day Out'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doTaskRows.map((op, idx) => {
+                        const totalTasks = Number(op.assignment_count) || 0;
+                        const mornExp = Number(op.morning_expected) || totalTasks;
+                        const eveExp = Number(op.evening_expected) || totalTasks;
+                        const mornDone = Number(op.morning_completed) || 0;
+                        const eveDone = Number(op.evening_completed) || 0;
+                        const overdue = Number(op.overdue) || 0;
+                        const mornPend = Number(op.morning_pending) || Math.max(0, mornExp - mornDone);
+                        const evePend = Number(op.evening_pending) || Math.max(0, eveExp - eveDone);
+                        const mornPct = mornExp > 0 ? Math.min(100, Math.round((mornDone / mornExp) * 100)) : 0;
+                        const evePct = eveExp > 0 ? Math.min(100, Math.round((eveDone / eveExp) * 100)) : 0;
+                        const inToday = Number(op.today_inward) || 0;
+                        const outToday = Number(op.today_outward) || 0;
+                        const dayLabel = doTaskOverview?.today || doTaskDate || 'selected day';
+                        const tone =
+                          overdue > 0
+                            ? 'bad'
+                            : mornPend > 0 || evePend > 0
+                              ? 'warn'
+                              : mornExp + eveExp > 0
+                                ? 'good'
+                                : 'muted';
+                        return (
+                          <tr
+                            key={`${op.id || op.email || op.name}-${idx}`}
+                            className={`sa-dash-task-row tone-${tone}`}
+                            onClick={() => openDoFromDashboard(op)}
+                            title={`${op.name || op.full_name || 'DO'} · Inward ${inToday} · Outward ${outToday} on ${dayLabel}`}
+                          >
+                            <td className="sa-dash-task-td-status">
+                              <span className="sa-dash-task-dot" />
+                            </td>
+                            <td className="sa-dash-task-td-name">
+                              <strong>{op.name || op.full_name || 'DO'}</strong>
+                            </td>
+                            <td className="sa-dash-task-td-wh">{op.warehouse_name || '—'}</td>
+                            <td
+                              className={`sa-dash-task-td-shift${mornPend > 0 ? ' pending' : mornExp > 0 ? ' done' : ''}`}
+                            >
+                              <span className="sa-dash-task-shift-top">
+                                <b>{mornDone}</b>
+                                <i>/{mornExp}</i>
+                              </span>
+                              <span className="sa-dash-task-bar" aria-hidden>
+                                <span style={{ width: `${mornPct}%` }} />
+                              </span>
+                            </td>
+                            <td
+                              className={`sa-dash-task-td-shift${evePend > 0 ? ' pending' : eveExp > 0 ? ' done' : ''}`}
+                            >
+                              <span className="sa-dash-task-shift-top">
+                                <b>{eveDone}</b>
+                                <i>/{eveExp}</i>
+                              </span>
+                              <span className="sa-dash-task-bar" aria-hidden>
+                                <span style={{ width: `${evePct}%` }} />
+                              </span>
+                            </td>
+                            <td className={`sa-dash-task-td-overdue${overdue > 0 ? ' hot' : ''}`}>{overdue}</td>
+                            <td className="sa-dash-task-td-io inward" title={`Inward on ${dayLabel}`}>
+                              <b>{inToday}</b>
+                            </td>
+                            <td className="sa-dash-task-td-io outward" title={`Outward on ${dayLabel}`}>
+                              <b>{outToday}</b>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {hasPendingRequests ? (
+            <section className="sa-op-card sa-dash-perm alert">
+              <div className="sa-op-dir-toolbar">
+                <div>
+                  <h2 className="sa-op-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    Role &amp; Permission Requests
+                    <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} />
+                  </h2>
+                  <p className="sa-op-sub">
+                    {dashboardPendingRequests.length} pending — approve or deny directly from dashboard
+                  </p>
+                </div>
+                <div className="sa-op-dir-tools">
+                  <button
+                    type="button"
+                    className="sa-op-btn-text"
+                    onClick={() => loadPermissionRequests()}
+                    disabled={loadingPermRequests}
+                  >
+                    {loadingPermRequests ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                  <button
+                    type="button"
+                    className="sa-op-btn-text"
+                    onClick={() => {
+                      setActiveMenu('activity_logs');
+                      setAuditSubTab('permission_log');
+                    }}
+                  >
+                    Open full log
+                  </button>
+                </div>
+              </div>
+
+              {activeMenu === 'dashboard' && logsError ? (
+                <div className="sa-op-banner-wrap">
+                  <LoadErrorBanner
+                    message={logsError}
+                    onRetry={loadPermissionRequests}
+                    onDismiss={() => setLogsError('')}
+                  />
+                </div>
+              ) : null}
+
+              {activeMenu === 'dashboard' && opSuccess ? (
+                <div className="sa-op-banner success">{opSuccess}</div>
+              ) : null}
+
+              <div className="sa-dash-perm-list">
+                {dashboardPendingRequests.map((pr) => {
+                    if (!pr) return null;
+                    const parsed = parseRequestDescription(pr.description || pr.request_description, pr.record_type);
+                    const isMasterSetup = pr.record_type === 'MasterSetup';
+                    const isChamberMaster = pr.record_type === 'ChamberMaster';
+                    const isChamberType = pr.record_type === 'ChamberType' || parsed.refNo === 'TYPE';
+                    const isClientMaster = pr.record_type === 'ClientMaster';
+                    const isAllowStyle = isMasterSetup || isChamberMaster || isChamberType || isClientMaster;
+                    const warehouse = operatorWarehouseMap[pr.operator_email ? pr.operator_email.toLowerCase() : ''] || 'System / Admin';
+                    const requestType = isMasterSetup
+                      ? 'OPEN'
+                      : isChamberType
+                        ? 'TYPE'
+                        : isChamberMaster
+                          ? (parsed.refNo || 'ALLOW')
+                          : (pr.raw_action === 'REQUEST_DELETE' ? 'DELETE' : 'EDIT');
+                    return (
+                      <div key={pr.id} className="sa-dash-perm-row">
+                        <div className="sa-dash-perm-main">
+                          <span className="sa-op-avatar">{String(pr.operator_email || 'DO').slice(0, 2).toUpperCase()}</span>
+                          <div className="sa-dash-perm-copy">
+                            <strong>{renderOperatorEmail(pr.operator_email)}</strong>
+                            <em>
+                              {parsed.module}
+                              {' · '}
+                              {warehouse}
+                              {' · '}
+                              {requestType}
+                            </em>
+                            <span className="sa-dash-perm-desc">
+                              {parsed.client !== '-' ? `${parsed.client} · ` : ''}
+                              {(pr.description || '').split(' | ')[0] || 'Permission request'}
+                            </span>
+                            {(pr.remark || pr.request_remark) ? (
+                              <span className="sa-dash-perm-remark">
+                                <strong>Remark</strong>
+                                {String(pr.remark || pr.request_remark).trim()}
+                              </span>
+                            ) : null}
+                            {parsed.extra !== '-' ? (
+                              <span className="sa-dash-perm-extra">{parsed.extra}</span>
+                            ) : null}
+                          </div>
+                          {!isAllowStyle && parsed.refNo ? (
+                            <button
+                              type="button"
+                              className="sa-op-btn-text"
+                              onClick={() => showLogDetailsByRef(parsed.refNo, pr.record_id, parsed.module)}
+                            >
+                              View log
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="sa-dash-perm-actions">
+                          <button
+                            type="button"
+                            className="sa-op-btn-primary"
+                            onClick={() => handleApproveDenyPermission(pr.id, 'Approved')}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="sa-op-btn-text danger"
+                            onClick={() => openDenyPermissionModal(pr)}
+                          >
+                            Deny
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </section>
+            ) : null}
+          </div>

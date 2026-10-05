@@ -14,6 +14,7 @@ import PhotoCaptureMetaPanel from '../PhotoCaptureMetaPanel/PhotoCaptureMetaPane
 import FallbackImg from '../FallbackImg/FallbackImg';
 import './LogProfileDetailModal.css';
 
+/** WHAT: One label/value row in the profile grid. WHY/HOW: Optional copyable ref and 2-column span. */
 function ProfileField({ label, value, span2, valueStyle, valueClassName, copyable }) {
   const normalized =
     value === null || value === undefined || String(value).trim() === '' ? '-' : value;
@@ -34,6 +35,7 @@ function ProfileField({ label, value, span2, valueStyle, valueClassName, copyabl
   );
 }
 
+/** WHAT: Clickable photo tile opening lightbox. WHY/HOW: Uses FallbackImg and resolveImageSrc. */
 function PhotoCard({ src, label, onZoom }) {
   if (!src || !String(src).trim()) return null;
   return (
@@ -51,6 +53,7 @@ function PhotoCard({ src, label, onZoom }) {
   );
 }
 
+/** WHAT: Splits comma-separated photo paths into numbered labels. WHY/HOW: Multiple invoice images in one DB field. */
 function expandMultiPhotos(src, baseLabel) {
   if (!src) return [];
   const parts = String(src).split(',').map((p) => p.trim()).filter(Boolean);
@@ -60,6 +63,7 @@ function expandMultiPhotos(src, baseLabel) {
   }));
 }
 
+/** WHAT: Grid of all inward log photo fields. WHY/HOW: Maps DB columns to PhotoCard list. */
 function renderInwardPhotos(log, onZoom) {
   const items = [
     ...expandMultiPhotos(log.inward_invoice_photos, 'Invoice Photo'),
@@ -87,6 +91,7 @@ function renderInwardPhotos(log, onZoom) {
   );
 }
 
+/** WHAT: Grid of all outward log photo fields. WHY/HOW: Same pattern as inward with outward column names. */
 function renderOutwardPhotos(log, onZoom) {
   const items = [
     ...expandMultiPhotos(log.outward_invoice_photos, 'Invoice Photo'),
@@ -115,6 +120,7 @@ function renderOutwardPhotos(log, onZoom) {
   );
 }
 
+/** WHAT: True if this log type has at least one image path. WHY/HOW: Hides empty photo section in modal. */
 function hasPhotos(log, detailType) {
   if (detailType === 'daily') return !!log.temp_sensor_image;
   if (detailType === 'inward') {
@@ -144,6 +150,11 @@ function hasPhotos(log, detailType) {
   );
 }
 
+/**
+ * WHAT: Full-screen or modal detail view for daily, inward, or outward log.
+ * WHY: History and lookup need one consistent layout for fields, photos, and metadata.
+ * HOW: detailType switches columns; lightbox for zoom; uses logProfileHelpers for formatting.
+ */
 export default function LogProfileDetailModal({
   log,
   detailType,

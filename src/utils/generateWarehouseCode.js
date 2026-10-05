@@ -1,4 +1,8 @@
-/** Build uppercase slug for warehouse codes (letters/digits/hyphen). */
+/**
+ * WHAT: Turns a warehouse name into an uppercase code fragment.
+ * WHY: Auto codes like WH-PUNE-01 need a stable slug from the name.
+ * HOW: Strips non-alphanumeric, hyphenates, truncates to maxLen.
+ */
 function slugPart(value, maxLen = 12) {
   return String(value || '')
     .trim()
@@ -9,14 +13,15 @@ function slugPart(value, maxLen = 12) {
     .slice(0, maxLen);
 }
 
-/** Prefer warehouse name only (city does not affect code). */
+/** WHAT: Public slug helper for warehouse master forms. WHY/HOW: City is ignored; name drives the code. */
 export function warehouseCodeSlug(warehouseName, _city) {
   return slugPart(warehouseName, 12);
 }
 
 /**
- * Auto warehouse code: WH-PUNE-01, WH-PUNE-02, …
- * Number increments for the same name slug among existingCodes.
+ * WHAT: Suggests the next warehouse code WH-{SLUG}-01, -02, …
+ * WHY: Super Admin should not invent duplicate codes manually.
+ * HOW: Scans existingCodes for same prefix and increments the numeric suffix.
  */
 export function generateWarehouseCode(warehouseName, city, existingCodes = []) {
   const slug = warehouseCodeSlug(warehouseName, city);

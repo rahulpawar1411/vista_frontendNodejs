@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { buildMediaSrcCandidates } from '../../utils/resolveMediaSrc';
 
 /**
- * <img> with Cloudinary → local /uploads fallback when CDN 404s.
+ * WHAT: Image tag that tries backup URLs if the first photo link fails.
+ * WHY: Old Cloudinary links and new /uploads paths both exist in the database.
+ * HOW: buildMediaSrcCandidates order; onError advances to the next candidate.
  */
 export default function FallbackImg({ src, alt = '', className, style, onClick, ...rest }) {
   const candidates = useMemo(() => buildMediaSrcCandidates(src), [src]);
@@ -30,6 +32,7 @@ export default function FallbackImg({ src, alt = '', className, style, onClick, 
   );
 }
 
+/** WHAT: First URL candidate for full-screen photo preview. WHY/HOW: Same list as FallbackImg, index 0. */
 export function resolveLightboxSrc(path) {
   return buildMediaSrcCandidates(path)[0] || null;
 }

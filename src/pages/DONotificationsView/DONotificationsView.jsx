@@ -8,6 +8,11 @@ import {
 import { fetchPermissionRequests, markPermissionRequestComplete } from '../../services/api';
 import './DONotificationsView.css';
 
+/**
+ * WHAT: Lists Super Admin approve/deny results for edit/delete permission requests.
+ * WHY: DO must know when they can edit a locked log and mark notifications done.
+ * HOW: Polls permission-requests API; PATCH complete when DO finishes the approved edit.
+ */
 export default function DONotificationsView({ setActiveDOMenu }) {
   const [notifications, setNotifications] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);

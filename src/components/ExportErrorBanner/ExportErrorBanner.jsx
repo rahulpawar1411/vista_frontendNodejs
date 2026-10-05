@@ -3,7 +3,9 @@ import { AlertCircle, RefreshCw, X } from 'lucide-react';
 import './ExportErrorBanner.css';
 
 /**
- * Inline export failure banner with Retry (timeout / network).
+ * WHAT: Inline alert when CSV export fails (network, timeout, or server error).
+ * WHY: Exports can be large; users should retry without losing their filters.
+ * HOW: Renders message plus Retry and optional Dismiss buttons.
  */
 export default function ExportErrorBanner({ message, retryable = true, onRetry, onDismiss }) {
   if (!message) return null;

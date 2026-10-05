@@ -1,5 +1,10 @@
 import React from 'react';
 
+/**
+ * WHAT: Catches JavaScript errors in child components so the whole app does not go blank.
+ * WHY: One broken screen should show a friendly message instead of a white page.
+ * HOW: React error boundary — stores the error in state and renders a reload button.
+ */
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

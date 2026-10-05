@@ -23,6 +23,7 @@ import {
 } from './chamberFormPresets';
 import './TempMonitor.css'; // Paired CSS file
 
+/** WHAT: Today's date as YYYY-MM-DD in local timezone. WHY/HOW: Default entry_date on the form. */
 function getLocalTodayStr() {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -31,6 +32,11 @@ function getLocalTodayStr() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/**
+ * WHAT: Starting form values for a new chamber log (or restored draft).
+ * WHY: DO should not re-type everything after accidental refresh.
+ * HOW: Reads sessionStorage draft; prefills supervisor from logged-in user.
+ */
 function buildInitialFormState() {
   const todayStr = getLocalTodayStr();
 
@@ -81,6 +87,11 @@ function buildInitialFormState() {
   };
 }
 
+/**
+ * WHAT: Data Operator daily chamber temperature monitoring form and list.
+ * WHY: Each shift must record client/chamber temps for cold-chain compliance.
+ * HOW: Loads paginated logs from API; form posts addChamberLog; edit mode uses parent editData.
+ */
 export default function TempMonitor({ forcedMenu, onMenuChange, editData, setEditData }) {
   // Compressed Temp Sensor Image File & Preview Thumbnail State
   const [imageFile, setImageFile] = useState(null);

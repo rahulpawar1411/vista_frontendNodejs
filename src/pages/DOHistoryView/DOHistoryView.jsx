@@ -37,6 +37,11 @@ import PhotoGpsLink from '../../components/PhotoGpsLink/PhotoGpsLink';
 import PhotoCaptureMetaPanel from '../../components/PhotoCaptureMetaPanel/PhotoCaptureMetaPanel';
 import './DOHistoryView.css';
 
+/**
+ * WHAT: Searchable history of daily, inward, and outward temperature logs.
+ * WHY: Operators review past entries and jump to edit (with permission) from one place.
+ * HOW: Tabbed filters call paginated API; row actions set edit state and switch DO menu.
+ */
 export default function DOHistoryView({ setActiveDOMenu, setEditInwardData, setEditOutwardData, setEditDailyData }) {
   const [activeTab, setActiveTab] = useState('daily'); // 'daily' | 'inward' | 'outward'
   

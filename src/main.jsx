@@ -5,7 +5,11 @@ import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary.jsx';
 import logoImg from './components/Logo/logo.png';
 import './index.css';
 
-// Use brand logo as favicon (dev + production build)
+/**
+ * WHAT: Sets the browser tab icon to the ReeferON logo.
+ * WHY: Users see the brand in the tab on dev and production builds.
+ * HOW: Creates or updates <link rel="icon"> tags in document.head.
+ */
 function applyBrandFavicon(href) {
   const setLink = (rel, id) => {
     let link = document.getElementById(id) || document.querySelector(`link[rel="${rel}"]`);

@@ -9,6 +9,11 @@ import { X, Thermometer, Save, Truck, User, ShieldCheck, Zap } from 'lucide-reac
 import { createTempLog } from '../../services/api';
 import './AddTempModal.css'; // Paired CSS file
 
+/**
+ * WHAT: Popup form to add a legacy temp log (Inward/Outward type).
+ * WHY: Older sales temp monitor path still uses simple JSON logs.
+ * HOW: createTempLog API; onLogAdded refreshes list; onClose dismisses modal.
+ */
 export default function AddTempModal({ defaultType = 'Inward', onClose, onLogAdded }) {
   const [formData, setFormData] = useState({
     entry_type: defaultType,

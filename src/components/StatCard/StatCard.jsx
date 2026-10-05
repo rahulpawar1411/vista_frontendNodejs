@@ -7,6 +7,11 @@
 import React from 'react';
 import './StatCard.css'; // Paired CSS file
 
+/**
+ * WHAT: Small KPI tile (title, number, icon) on the sales dashboard.
+ * WHY: Visual summary of counts like total leads or won deals.
+ * HOW: Presentational only — parent passes value and Lucide icon component.
+ */
 export default function StatCard({ title, value, icon: Icon, color, bgColor }) {
   return (
     <div className="stat-card">
