@@ -21,7 +21,7 @@ import {
   Menu, X, ChevronRight, User, Eye, EyeOff, Activity, Search, Download, History, LayoutDashboard,
   Copy, Check, Loader2, CheckCircle, ClipboardCheck, MessageSquareWarning, MessageSquare, Smartphone, Package, Users, LayoutGrid,
   ChevronDown, ChevronUp, Plus, ArrowLeft, Undo2, Mail, Home, RefreshCw, FileText, MoreVertical,
-  Phone, ArrowDownLeft, ArrowUpRight, CheckCircle2, Sun, Moon, MapPin, UserX
+  Phone, ArrowDownLeft, ArrowUpRight, CheckCircle2, Sun, Moon, MapPin, UserX, Info
 } from 'lucide-react';
 import Logo from '../../components/Logo/Logo';
 import PaginationBar from '../../components/PaginationBar/PaginationBar';
@@ -6226,114 +6226,177 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           <div className="sa-profile-window">
             <div className="sa-profile-window-top">
               <div className="sa-profile-window-title">
-                <div className="sa-profile-window-icon">
-                  <ShieldCheck size={22} />
-                </div>
+                <button
+                  type="button"
+                  className="sa-profile-back-ico"
+                  onClick={() => {
+                    clearProfilePasswordForm();
+                    setActiveMenu('dashboard');
+                  }}
+                  title="Back to dashboard"
+                >
+                  <ArrowLeft size={18} />
+                </button>
                 <div>
                   <h2>Super Admin Profile</h2>
                   <p>Update login email and password from this working window.</p>
                 </div>
               </div>
-              <button
-                type="button"
-                className="sa-profile-window-back"
-                onClick={() => {
-                  clearProfilePasswordForm();
-                  setActiveMenu('dashboard');
-                }}
-              >
-                <X size={16} />
-                Close
-              </button>
+              <div className="sa-profile-window-actions">
+                <span className="sa-profile-active-pill">
+                  <CheckCircle2 size={14} />
+                  Active
+                </span>
+                <button
+                  type="button"
+                  className="sa-profile-window-back"
+                  onClick={() => {
+                    clearProfilePasswordForm();
+                    setActiveMenu('dashboard');
+                  }}
+                >
+                  <X size={16} />
+                  Close
+                </button>
+              </div>
             </div>
 
             <div className="sa-profile-window-grid">
               <div className="sa-profile-info-card">
-                <h3>Account Details</h3>
+                <div className="sa-profile-card-head">
+                  <span className="sa-profile-card-ico">
+                    <User size={16} />
+                  </span>
+                  <h3>Account Details</h3>
+                </div>
                 <div className="sa-profile-info-row">
                   <span>Role</span>
-                  <strong>Super Admin</strong>
+                  <strong>
+                    <em className="sa-profile-role-pill">Super Admin</em>
+                  </strong>
                 </div>
                 <div className="sa-profile-info-row">
                   <span>Email</span>
-                  <strong>{user?.email || 'â€”'}</strong>
+                  <strong>{user?.email || '—'}</strong>
                 </div>
                 <div className="sa-profile-info-row">
                   <span>Name</span>
-                  <strong>{user?.full_name || 'Super Administrator'}</strong>
+                  <strong>{user?.full_name || 'Super Admin'}</strong>
                 </div>
                 <div className="sa-profile-info-note">
-                  Verify with your ID and password first. After verification you can update email, password, or both.
+                  <Info size={14} />
+                  <span>
+                    Verify with your ID and password first. After verification you can update email,
+                    password, or both.
+                  </span>
                 </div>
               </div>
 
               <div className="sa-profile-security-card">
                 {!profileAccessVerified ? (
-                  <>
-                    <h3>Profile Access Verification</h3>
-                    <p className="sa-profile-security-sub">
-                      Enter your Super Admin ID and password to continue.
-                    </p>
-                    <form className="sa-profile-form" onSubmit={handleProfileAccessVerify} autoComplete="off">
-                      <label>Super Admin ID</label>
-                      <div className="sa-profile-input-wrap">
-                        <input
-                          type="email"
-                          value={profileAccessId}
-                          onChange={(e) => setProfileAccessId(e.target.value)}
-                          placeholder="Enter your Super Admin ID"
-                          autoComplete="off"
-                          name="sa-profile-access-id"
-                        />
+                  <div className="sa-profile-verify-layout">
+                    <div className="sa-profile-verify-main">
+                      <div className="sa-profile-card-head">
+                        <span className="sa-profile-card-ico">
+                          <ShieldCheck size={16} />
+                        </span>
+                        <div>
+                          <h3>Profile Access Verification</h3>
+                          <p className="sa-profile-security-sub">
+                            Enter your Super Admin ID and password to continue.
+                          </p>
+                        </div>
                       </div>
-                      <label>Password</label>
-                      <div className="sa-profile-input-wrap">
-                        <input
-                          type={showCurrentAdminPassword ? 'text' : 'password'}
-                          value={profileAccessPassword}
-                          onChange={(e) => setProfileAccessPassword(e.target.value)}
-                          placeholder="Enter your password"
-                          autoComplete="new-password"
-                          name="sa-profile-access-password"
-                        />
-                        <button
-                          type="button"
-                          className="sa-profile-eye-btn"
-                          onClick={() => setShowCurrentAdminPassword((p) => !p)}
-                          title={showCurrentAdminPassword ? 'Hide Password' : 'Show Password'}
-                        >
-                          {showCurrentAdminPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      <form className="sa-profile-form" onSubmit={handleProfileAccessVerify} autoComplete="off">
+                        <label>Super Admin ID</label>
+                        <div className="sa-profile-input-wrap has-lead">
+                          <User size={15} className="sa-profile-input-lead" />
+                          <input
+                            type="email"
+                            value={profileAccessId}
+                            onChange={(e) => setProfileAccessId(e.target.value)}
+                            placeholder="Enter your Super Admin ID"
+                            autoComplete="off"
+                            name="sa-profile-access-id"
+                          />
+                        </div>
+                        <label>Password</label>
+                        <div className="sa-profile-input-wrap has-lead">
+                          <Lock size={15} className="sa-profile-input-lead" />
+                          <input
+                            type={showCurrentAdminPassword ? 'text' : 'password'}
+                            value={profileAccessPassword}
+                            onChange={(e) => setProfileAccessPassword(e.target.value)}
+                            placeholder="Enter your password"
+                            autoComplete="new-password"
+                            name="sa-profile-access-password"
+                          />
+                          <button
+                            type="button"
+                            className="sa-profile-eye-btn"
+                            onClick={() => setShowCurrentAdminPassword((p) => !p)}
+                            title={showCurrentAdminPassword ? 'Hide Password' : 'Show Password'}
+                          >
+                            {showCurrentAdminPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {profileAccessErr && <div className="sa-profile-error">{profileAccessErr}</div>}
+                        <button type="submit" className="sa-profile-submit" disabled={profileAccessLoading}>
+                          {profileAccessLoading ? (
+                            <>
+                              <Loader2 size={16} className="sa-profile-spin" />
+                              Verifying…
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 size={16} />
+                              Verify and Continue
+                            </>
+                          )}
                         </button>
-                      </div>
-                      {profileAccessErr && <div className="sa-profile-error">{profileAccessErr}</div>}
-                      <button type="submit" className="sa-profile-submit" disabled={profileAccessLoading}>
-                        {profileAccessLoading ? (
-                          <>
-                            <Loader2 size={16} className="sa-profile-spin" />
-                            Verifyingâ€¦
-                          </>
-                        ) : (
-                          <>
-                            <Lock size={16} />
-                            Verify and Continue
-                          </>
-                        )}
-                      </button>
-                    </form>
-                  </>
+                      </form>
+                    </div>
+                    <aside className="sa-profile-secure-aside">
+                      <span className="sa-profile-secure-badge">
+                        <ShieldCheck size={22} />
+                      </span>
+                      <strong>Secure Access</strong>
+                      <p>Only verified Super Admins can make changes to the system.</p>
+                      <ul>
+                        <li>
+                          <CheckCircle2 size={14} /> ID Verification
+                        </li>
+                        <li>
+                          <CheckCircle2 size={14} /> Password Verification
+                        </li>
+                        <li>
+                          <CheckCircle2 size={14} /> Full Access
+                        </li>
+                      </ul>
+                    </aside>
+                  </div>
                 ) : (
                   <>
-                    <h3>Update Email / Password</h3>
-                    <p className="sa-profile-security-sub">
-                      Update email, password, or both. Leave password fields blank if you only want to change email.
-                    </p>
+                    <div className="sa-profile-card-head">
+                      <span className="sa-profile-card-ico">
+                        <Lock size={16} />
+                      </span>
+                      <div>
+                        <h3>Update Email / Password</h3>
+                        <p className="sa-profile-security-sub">
+                          Update email, password, or both. Leave password fields blank if you only want
+                          to change email.
+                        </p>
+                      </div>
+                    </div>
                     <form className="sa-profile-form" onSubmit={handleProfilePasswordSubmit} autoComplete="off">
                       <div className="sa-profile-old-email">
                         <h2>Old Email ID</h2>
                         <h1>{oldProfileEmail || user?.email || '-'}</h1>
                       </div>
                       <label>New Email ID</label>
-                      <div className="sa-profile-input-wrap">
+                      <div className="sa-profile-input-wrap has-lead">
+                        <Mail size={15} className="sa-profile-input-lead" />
                         <input
                           type="email"
                           value={profileEmail}
@@ -6344,7 +6407,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         />
                       </div>
                       <label>New Password</label>
-                      <div className="sa-profile-input-wrap">
+                      <div className="sa-profile-input-wrap has-lead">
+                        <Lock size={15} className="sa-profile-input-lead" />
                         <input
                           type={showNewAdminPassword ? 'text' : 'password'}
                           value={newAdminPassword}
@@ -6363,7 +6427,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         </button>
                       </div>
                       <label>Confirm Password</label>
-                      <div className="sa-profile-input-wrap">
+                      <div className="sa-profile-input-wrap has-lead">
+                        <Lock size={15} className="sa-profile-input-lead" />
                         <input
                           type={showConfirmAdminPassword ? 'text' : 'password'}
                           value={confirmAdminPassword}
@@ -6389,7 +6454,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         {profilePwdLoading ? (
                           <>
                             <Loader2 size={16} className="sa-profile-spin" />
-                            Saving Changesâ€¦
+                            Saving Changes…
                           </>
                         ) : (
                           <>
@@ -6405,162 +6470,198 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             </div>
 
             <div className="sa-profile-subadmin-card">
-              <div className="sa-profile-subadmin-head">
-                <div>
-                  <h3>Register Mobile Sub-Admin</h3>
-                  <p>
-                    Sub-Admins get full mobile app access (view and process all data). Separate from Customers.
-                  </p>
+              <div className="sa-profile-subadmin-body">
+                <div className="sa-profile-subadmin-main">
+                  <div className="sa-profile-card-head">
+                    <span className="sa-profile-card-ico">
+                      <Users size={16} />
+                    </span>
+                    <div>
+                      <h3>Register Mobile Sub-Admin</h3>
+                      <p className="sa-profile-security-sub">
+                        Sub-Admins get full mobile app access (view and process all data). Separate from
+                        Customers.
+                      </p>
+                    </div>
+                  </div>
+
+                  <form className="sa-profile-form sa-profile-form-wide" onSubmit={handleCreateAppSubAdmin} autoComplete="off">
+                    <div className="sa-profile-subadmin-grid">
+                      <div>
+                        <label>Name *</label>
+                        <div className="sa-profile-input-wrap has-lead">
+                          <User size={15} className="sa-profile-input-lead" />
+                          <input
+                            type="text"
+                            value={appSubFullName}
+                            onChange={(e) => setAppSubFullName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
+                            placeholder="Full name"
+                            name="app-sub-name"
+                            autoComplete="off"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Number *</label>
+                        <div className="sa-profile-input-wrap has-lead">
+                          <Phone size={15} className="sa-profile-input-lead" />
+                          <input
+                            type="tel"
+                            value={appSubPhone}
+                            onChange={(e) => setAppSubPhone(e.target.value.replace(/[^\d+]/g, ''))}
+                            placeholder="Phone number"
+                            name="app-sub-phone"
+                            autoComplete="off"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Email *</label>
+                        <div className="sa-profile-input-wrap has-lead">
+                          <Mail size={15} className="sa-profile-input-lead" />
+                          <input
+                            type="email"
+                            value={appSubEmail}
+                            onChange={(e) => setAppSubEmail(e.target.value)}
+                            placeholder="subadmin@company.com"
+                            name="app-sub-email"
+                            autoComplete="off"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Password *</label>
+                        <div className="sa-profile-input-wrap has-lead">
+                          <Lock size={15} className="sa-profile-input-lead" />
+                          <input
+                            type={showAppSubPassword ? 'text' : 'password'}
+                            value={appSubPassword}
+                            onChange={(e) => setAppSubPassword(e.target.value)}
+                            placeholder="Login password"
+                            name="app-sub-password"
+                            autoComplete="new-password"
+                            required
+                          />
+                          <button
+                            type="button"
+                            className="sa-profile-eye-btn"
+                            onClick={() => setShowAppSubPassword((p) => !p)}
+                            title={showAppSubPassword ? 'Hide Password' : 'Show Password'}
+                          >
+                            {showAppSubPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {appSubAdminErr && <div className="sa-profile-error">{appSubAdminErr}</div>}
+                    {appSubAdminMsg && <div className="sa-profile-success">{appSubAdminMsg}</div>}
+
+                    <button type="submit" className="sa-profile-submit" disabled={appSubAdminSaving}>
+                      {appSubAdminSaving ? (
+                        <>
+                          <Loader2 size={16} className="sa-profile-spin" />
+                          Creating…
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus size={16} />
+                          Create Sub-Admin
+                        </>
+                      )}
+                    </button>
+                  </form>
                 </div>
-                <Smartphone size={22} color="#00a2e8" />
+
+                <aside className="sa-profile-features-aside">
+                  <span className="sa-profile-secure-badge">
+                    <Smartphone size={22} />
+                  </span>
+                  <strong>Sub-Admin Features</strong>
+                  <ul>
+                    <li>
+                      <CheckCircle2 size={14} /> Access to mobile application
+                    </li>
+                    <li>
+                      <CheckCircle2 size={14} /> View and process all data
+                    </li>
+                    <li>
+                      <CheckCircle2 size={14} /> Separate access from Customers
+                    </li>
+                    <li>
+                      <CheckCircle2 size={14} /> Can be deactivated anytime
+                    </li>
+                  </ul>
+                </aside>
               </div>
+            </div>
 
-              <form className="sa-profile-form" onSubmit={handleCreateAppSubAdmin} autoComplete="off">
-                <div className="sa-profile-subadmin-grid">
+            <div className="sa-profile-list-card">
+              <div className="sa-profile-list-head">
+                <div className="sa-profile-card-head">
+                  <span className="sa-profile-card-ico">
+                    <Users size={16} />
+                  </span>
                   <div>
-                    <label>Name *</label>
-                    <div className="sa-profile-input-wrap">
-                      <input
-                        type="text"
-                        value={appSubFullName}
-                        onChange={(e) => setAppSubFullName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
-                        placeholder="Full name"
-                        name="app-sub-name"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label>Number *</label>
-                    <div className="sa-profile-input-wrap">
-                      <input
-                        type="tel"
-                        value={appSubPhone}
-                        onChange={(e) => setAppSubPhone(e.target.value.replace(/[^\d+]/g, ''))}
-                        placeholder="Phone number"
-                        name="app-sub-phone"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label>Email *</label>
-                    <div className="sa-profile-input-wrap">
-                      <input
-                        type="email"
-                        value={appSubEmail}
-                        onChange={(e) => setAppSubEmail(e.target.value)}
-                        placeholder="subadmin@company.com"
-                        name="app-sub-email"
-                        autoComplete="off"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label>Password *</label>
-                    <div className="sa-profile-input-wrap">
-                      <input
-                        type={showAppSubPassword ? 'text' : 'password'}
-                        value={appSubPassword}
-                        onChange={(e) => setAppSubPassword(e.target.value)}
-                        placeholder="Login password"
-                        name="app-sub-password"
-                        autoComplete="new-password"
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="sa-profile-eye-btn"
-                        onClick={() => setShowAppSubPassword((p) => !p)}
-                        title={showAppSubPassword ? 'Hide Password' : 'Show Password'}
-                      >
-                        {showAppSubPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
+                    <h3>Registered Sub-Admins</h3>
+                    <p className="sa-profile-security-sub">Manage existing sub-admins and their access.</p>
                   </div>
                 </div>
-
-                {appSubAdminErr && <div className="sa-profile-error">{appSubAdminErr}</div>}
-                {appSubAdminMsg && <div className="sa-profile-success">{appSubAdminMsg}</div>}
-
-                <button type="submit" className="sa-profile-submit" disabled={appSubAdminSaving}>
-                  {appSubAdminSaving ? (
-                    <>
-                      <Loader2 size={16} className="sa-profile-spin" />
-                      Creatingâ€¦
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={16} />
-                      Create Sub-Admin
-                    </>
-                  )}
+                <button
+                  type="button"
+                  className="sa-profile-refresh-btn"
+                  onClick={loadAppSubAdminsList}
+                  disabled={appSubAdminLoading}
+                  title="Refresh list"
+                >
+                  <RefreshCw size={14} className={appSubAdminLoading ? 'sa-profile-spin' : ''} />
+                  Refresh
                 </button>
-              </form>
-
-              <div className="sa-profile-subadmin-list">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-                  <h4 style={{ margin: 0 }}>Registered Sub-Admins</h4>
-                  <button
-                    type="button"
-                    className="sa-profile-window-back"
-                    onClick={loadAppSubAdminsList}
-                    disabled={appSubAdminLoading}
-                    title="Refresh list"
-                  >
-                    {appSubAdminLoading ? 'Loadingâ€¦' : 'Refresh'}
-                  </button>
-                </div>
-                {appSubAdminErr && <div className="sa-profile-error">{appSubAdminErr}</div>}
-                {appSubAdminLoading ? (
-                  <p className="sa-profile-security-sub">Loadingâ€¦</p>
-                ) : appSubAdmins.length === 0 && !appSubAdminErr ? (
-                  <p className="sa-profile-security-sub">No Sub-Admins yet.</p>
-                ) : appSubAdmins.length === 0 ? null : (
-                  <div className="table-responsive">
-                    <table className="logs-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ textAlign: 'left', padding: '10px 12px' }}>Name</th>
-                          <th style={{ textAlign: 'left', padding: '10px 12px' }}>Number</th>
-                          <th style={{ textAlign: 'left', padding: '10px 12px' }}>Email</th>
-                          <th style={{ textAlign: 'center', padding: '10px 12px' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {appSubAdmins.map((row) => (
-                          <tr key={row.id}>
-                            <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.full_name || 'â€”'}</td>
-                            <td style={{ padding: '10px 12px' }}>{row.phone_no || 'â€”'}</td>
-                            <td style={{ padding: '10px 12px' }}>{row.email}</td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAppSubAdmin(row.id)}
-                                style={{
-                                  border: 'none',
-                                  background: '#fee2e2',
-                                  color: '#dc2626',
-                                  borderRadius: 8,
-                                  padding: '6px 10px',
-                                  cursor: 'pointer',
-                                  fontWeight: 700,
-                                  fontSize: '0.75rem'
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
+
+              {appSubAdminErr && <div className="sa-profile-error">{appSubAdminErr}</div>}
+              {appSubAdminLoading ? (
+                <p className="sa-profile-security-sub">Loading…</p>
+              ) : appSubAdmins.length === 0 && !appSubAdminErr ? (
+                <p className="sa-profile-security-sub">No Sub-Admins yet.</p>
+              ) : appSubAdmins.length === 0 ? null : (
+                <div className="sa-profile-table-wrap">
+                  <table className="sa-profile-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Number</th>
+                        <th>Email</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {appSubAdmins.map((row) => (
+                        <tr key={row.id}>
+                          <td>
+                            <strong>{row.full_name || '—'}</strong>
+                          </td>
+                          <td>{row.phone_no || '—'}</td>
+                          <td>{row.email}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="sa-profile-delete-btn"
+                              onClick={() => handleDeleteAppSubAdmin(row.id)}
+                            >
+                              <Trash2 size={13} />
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {showProfileConfirm && profileConfirmSummary && (
