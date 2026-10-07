@@ -4460,15 +4460,65 @@ html.sa-ui-zoom-80 .sa-lightbox-popup {
 }
 
 .sa-op-inbox-head {
-  display: none;
+  display: grid;
+  grid-template-columns: auto minmax(120px, 18%) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e8eaed;
+  background: #f8f9fa;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #80868b;
 }
 
 .sa-op-inbox-row {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f3f4;
+  background: #fff;
+}
+
+.sa-op-inbox-row:hover {
+  background: #f2f6fc;
 }
 
 .sa-op-inbox-main {
-  display: none;
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(120px, 18%) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+button.sa-op-inbox-main {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sa-op-date {
+  justify-self: end;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: var(--op-small, 11px);
+  color: var(--op-muted, #80868b);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .sa-op-avatar {

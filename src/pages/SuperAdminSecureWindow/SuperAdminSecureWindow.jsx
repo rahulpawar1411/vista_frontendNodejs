@@ -2,7 +2,7 @@
 // Super Admin Secure Window (SuperAdminSecureWindow.jsx + .css)
 // --------------------------------------------------------------------
 // OVERVIEW (beginner):
-//   WHAT: Full web console for Super Admin â€” dashboard, DOs, customers, logs, exports.
+//   WHAT: Full web console for Super Admin — dashboard, DOs, customers, logs, exports.
 //   WHY:  One place to approve edits, manage master data, and audit cold-chain records.
 //   HOW:  Sidebar sets activeMenu; each menu loads data via services/api.js; large tables paginate.
 //
@@ -89,6 +89,7 @@ import {
 } from '../../utils/doTaskStatus';
 import '../../components/DOSidebar/DOSidebar.css';
 import './SuperAdminSecureWindow.css';
+import './SaRegisterOperator.css';
 import './DoProfileControlCenter.css';
 
 const TempMonitor = lazy(() => import('../TempMonitor/TempMonitor'));
@@ -119,7 +120,7 @@ const highlightAddedDeletedWords = (text, extraNodes = null) => {
 
 const chamberNumberFromName = strictChamberNumberFromName;
 
-/** WHAT: True when chamberâ€“client assignment row is marked inactive. WHY/HOW: Filters mapping lists and dedupe logic. */
+/** WHAT: True when chamber–client assignment row is marked inactive. WHY/HOW: Filters mapping lists and dedupe logic. */
 const isDeactiveAssignment = (row) =>
   String(row?.status || 'active').trim().toLowerCase() === 'inactive';
 
@@ -171,7 +172,7 @@ const toStoredIndiaPhone = (value) => {
 
 const formatIndiaPhoneDisplay = (value) => {
   const local = toLocalTenDigitPhone(value);
-  if (!local) return 'â€”';
+  if (!local) return '—';
   return local.length === 10 ? `+91 ${local}` : local;
 };
 
@@ -212,7 +213,7 @@ const buildPendingPermissionFingerprint = (pr) => {
     const addMatch = desc.match(/ADD client "([^"]+)"/i);
     const delMatch = desc.match(/DELETE client "([^"]+)"/i);
     const editMatch = desc.match(/EDIT client "([^"]+)"/i);
-    const renameTo = desc.match(/EDIT client "[^"]+"\s*(?:â†’|->)\s*"([^"]+)"/i);
+    const renameTo = desc.match(/EDIT client "[^"]+"\s*(?:→|->)\s*"([^"]+)"/i);
     const chamberMatch =
       desc.match(/\(id:\s*(\d+)\)/i) ||
       desc.match(/chamber_id:\s*(\d+)/i);
@@ -270,7 +271,7 @@ const filterActionablePendingPermissionRequests = (
 };
 
 /** Circle spinner used while Super Admin section data is loading. */
-const SaDataLoading = ({ label = 'Loading dataâ€¦', compact = false }) => (
+const SaDataLoading = ({ label = 'Loading data…', compact = false }) => (
   <div className={`sa-data-loading${compact ? ' is-compact' : ''}`} role="status" aria-live="polite">
     <Loader2 size={compact ? 22 : 32} className="spinner-icon" color="#0033a0" aria-hidden />
     <span>{label}</span>
@@ -301,7 +302,7 @@ const filterDecidedPermissionRequests = (
 
 /** Render Sub Admin / Super Admin name + email from decision audit fields. */
 const renderDecidedByCell = (row) => {
-  if (!row) return 'â€”';
+  if (!row) return '—';
   const name = String(row.decided_by_name || '').trim();
   const email = String(row.decided_by_email || '').trim();
   const role = String(row.decided_by_role || '').trim();
@@ -323,7 +324,7 @@ const renderDecidedByCell = (row) => {
     );
   }
   const label = String(row.decided_by || '').trim();
-  return label || 'â€”';
+  return label || '—';
 };
 
 const MASTER_SETUP_ACTIONS = new Set([
@@ -369,9 +370,9 @@ const parseMasterActivity = (act) => {
   const added = [];
   const deleted = [];
   const renamed = [];
-  let typeFrom = quotedMatch(desc, /Chamber type:\s*([A-Za-z]+)\s*â†’/i);
+  let typeFrom = quotedMatch(desc, /Chamber type:\s*([A-Za-z]+)\s*→/i);
   let typeTo =
-    quotedMatch(desc, /Chamber type:\s*[A-Za-z]+\s*â†’\s*([A-Za-z]+)/i) ||
+    quotedMatch(desc, /Chamber type:\s*[A-Za-z]+\s*→\s*([A-Za-z]+)/i) ||
     quotedMatch(desc, /updated to "([^"]+)"/i) ||
     quotedMatch(desc, /to "([^"]+)"/i);
 
@@ -382,7 +383,7 @@ const parseMasterActivity = (act) => {
   const renamedBlock = desc.match(/Client renamed:\s*([^.]+)/i);
   if (renamedBlock) {
     renamedBlock[1].split(',').forEach((chunk) => {
-      const pair = String(chunk).match(/(.+?)\s*(?:â†’|->)\s*(.+)/);
+      const pair = String(chunk).match(/(.+?)\s*(?:→|->)\s*(.+)/);
       if (pair) renamed.push({ from: pair[1].trim(), to: pair[2].trim() });
     });
   }
@@ -397,7 +398,7 @@ const parseMasterActivity = (act) => {
     if (name && !deleted.includes(name)) deleted.push(name);
   }
   if (action === 'UPDATE_CLIENT') {
-    const pair = desc.match(/edited client master "([^"]+)"\s*(?:â†’|->)\s*"([^"]+)"/i);
+    const pair = desc.match(/edited client master "([^"]+)"\s*(?:→|->)\s*"([^"]+)"/i);
     if (pair) renamed.push({ from: pair[1].trim(), to: pair[2].trim() });
   }
 
@@ -519,13 +520,13 @@ const renderMasterActivityStructured = (act, { compact = false } = {}) => {
   if (parsed.renamed.length) {
     rows.push(chip(
       'Renamed',
-      parsed.renamed.map((item) => `${item.from} â†’ ${item.to}`).join(', '),
+      parsed.renamed.map((item) => `${item.from} → ${item.to}`).join(', '),
       '#a16207',
       '#fef9c3'
     ));
   }
   if (parsed.typeFrom || parsed.typeTo) {
-    rows.push(chip('Type', parsed.typeFrom && parsed.typeTo ? `${parsed.typeFrom} â†’ ${parsed.typeTo}` : parsed.typeTo || parsed.typeFrom, '#1d4ed8', '#dbeafe'));
+    rows.push(chip('Type', parsed.typeFrom && parsed.typeTo ? `${parsed.typeFrom} → ${parsed.typeTo}` : parsed.typeTo || parsed.typeFrom, '#1d4ed8', '#dbeafe'));
   }
   if (parsed.remark) rows.push(chip('Remark', parsed.remark, '#0f766e', '#ccfbf1'));
   if (!rows.length && parsed.summary) {
@@ -568,7 +569,7 @@ const renderMasterActivityStructured = (act, { compact = false } = {}) => {
 };
 
 /**
- * WHAT: Root Super Admin layout â€” sidebar, main viewport, modals, inline DO monitors.
+ * WHAT: Root Super Admin layout — sidebar, main viewport, modals, inline DO monitors.
  * WHY: Centralizes CRM, permissions, logs, and operator management for cold-chain ops.
  * HOW: activeMenu switches sections; useEffects load the right API data per menu (see ~3211).
  *      State groups below: navigation, operators/DO profile, activity/history logs, customers,
@@ -783,7 +784,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const historyPerPage = 50;
   const [appliedLogsSearch, setAppliedLogsSearch] = useState('');
   const [logsExportLoading, setLogsExportLoading] = useState(false);
-  const [logsExportProgressLabel, setLogsExportProgressLabel] = useState('Exportingâ€¦');
+  const [logsExportProgressLabel, setLogsExportProgressLabel] = useState('Exporting…');
   const [exportError, setExportError] = useState(null); // { message, retryable, retryKey }
   const exportAbortRef = useRef(null);
   const opMasterActivitiesEmailRef = useRef('');
@@ -798,14 +799,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [detailType, setDetailType] = useState('');
   const [recordAllowHistory, setRecordAllowHistory] = useState([]);
   const [loadingAllowHistory, setLoadingAllowHistory] = useState(false);
-  /** Photo Preview modal: image URL, zoom level (1â€“5), drag-to-pan when zoomed. */
+  /** Photo Preview modal: image URL, zoom level (1–5), drag-to-pan when zoomed. */
   const [lightboxImg, setLightboxImg] = useState(null);
   const [lightboxZoom, setLightboxZoom] = useState(1);
   const [lightboxPanning, setLightboxPanning] = useState(false);
   const lightboxBodyRef = useRef(null);
   const lightboxDragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
 
-  // New photo â†’ reset zoom so each preview starts at 100%.
+  // New photo → reset zoom so each preview starts at 100%.
   useEffect(() => {
     setLightboxZoom(1);
     setLightboxPanning(false);
@@ -871,22 +872,22 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   /** Super Admin direct edit (no permission): { type: 'daily'|'inward'|'outward', data } */
   const [saEditLog, setSaEditLog] = useState(null);
   const [saLogActionBusy, setSaLogActionBusy] = useState(false);
-  /** Soft-pending delete for chamber / inward / outward â€” Undo for 30s */
+  /** Soft-pending delete for chamber / inward / outward — Undo for 30s */
   const [pendingLogDelete, setPendingLogDelete] = useState(null);
   const pendingLogDeleteRef = useRef(null);
   const pendingLogDeleteTimerRef = useRef(null);
   const pendingLogDeleteTickRef = useRef(null);
-  /** Soft-pending revoke for Registered Operators â€” Undo for 30s */
+  /** Soft-pending revoke for Registered Operators — Undo for 30s */
   const [pendingOperatorDelete, setPendingOperatorDelete] = useState(null);
   const pendingOperatorDeleteRef = useRef(null);
   const pendingOperatorDeleteTimerRef = useRef(null);
   const pendingOperatorDeleteTickRef = useRef(null);
-  /** Soft-pending revoke for Customers Directory â€” Undo for 30s */
+  /** Soft-pending revoke for Customers Directory — Undo for 30s */
   const [pendingCustomerDelete, setPendingCustomerDelete] = useState(null);
   const pendingCustomerDeleteRef = useRef(null);
   const pendingCustomerDeleteTimerRef = useRef(null);
   const pendingCustomerDeleteTickRef = useRef(null);
-  /** Soft-pending master mapping delete (chamber / client) â€” Undo for 30s */
+  /** Soft-pending master mapping delete (chamber / client) — Undo for 30s */
   const [pendingMasterDelete, setPendingMasterDelete] = useState(null);
   const pendingMasterDeleteRef = useRef(null);
   const pendingMasterDeleteTimerRef = useRef(null);
@@ -944,14 +945,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     if (!s || s === 'N/A') return 'N/A';
     if (s.includes('/') || s.includes('\\')) {
       const name = s.split(/[/\\]/).pop();
-      return name ? `â€¦/${name}` : s;
+      return name ? `…/${name}` : s;
     }
-    return s.length > 48 ? `${s.slice(0, 45)}â€¦` : s;
+    return s.length > 48 ? `${s.slice(0, 45)}…` : s;
   };
 
   /**
-   * Parses "Field: old âž” new, Field2: old2 âž” new2" into readable rows.
-   * Also supports â†’, -> and pipe-separated multi-update history.
+   * Parses "Field: old → new, Field2: old2 → new2" into readable rows.
+   * Also supports →, -> and pipe-separated multi-update history.
    */
   const parseUpdateDetails = (raw) => {
     if (!raw || !String(raw).trim()) return [];
@@ -962,7 +963,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     segments.forEach((segment) => {
       const parts = String(segment).split(/\s*,\s*(?=[^,:]+:\s)/);
       parts.forEach((part) => {
-        const arrowMatch = part.match(/^(.*?):\s*(.*?)\s*(?:âž”|â†’|->)\s*(.*)$/);
+        const arrowMatch = part.match(/^(.*?):\s*(.*?)\s*(?:→|→|->)\s*(.*)$/);
         if (arrowMatch) {
           rows.push({
             field: arrowMatch[1].trim(),
@@ -973,12 +974,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         }
         const colonIdx = part.indexOf(':');
         if (colonIdx === -1) {
-          if (part.trim()) rows.push({ field: 'Change', from: 'â€”', to: shortenUpdateValue(part) });
+          if (part.trim()) rows.push({ field: 'Change', from: '—', to: shortenUpdateValue(part) });
           return;
         }
         rows.push({
           field: part.slice(0, colonIdx).trim(),
-          from: 'â€”',
+          from: '—',
           to: shortenUpdateValue(part.slice(colonIdx + 1))
         });
       });
@@ -986,7 +987,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     return rows.filter((row) => row.field);
   };
 
-  const renderFieldCompareTable = (rows, { title = 'What Changed (Before â†’ After)' } = {}) => {
+  const renderFieldCompareTable = (rows, { title = 'What Changed (Before → After)' } = {}) => {
     if (!rows || rows.length === 0) return null;
     const labelMap = {
       box_temp: 'Box Temperature',
@@ -1071,11 +1072,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     if (rows.length === 0) {
       return (
         <span className="profile-value" style={{ color: 'var(--text-muted)' }}>
-          â€” No field changes recorded â€”
+          — No field changes recorded —
         </span>
       );
     }
-    return renderFieldCompareTable(rows, { title: 'Update Details â€” Before â†’ After' });
+    return renderFieldCompareTable(rows, { title: 'Update Details — Before → After' });
   };
 
   const resolveShiftLabel = (shift, inspectionTime, createdAt) => {
@@ -1113,7 +1114,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     <PhotoCaptureMetaPanel metadata={raw} />
   );
 
-  /** Chamber log detail â€” Quick Summary first, then full fields + update compare */
+  /** Chamber log detail — Quick Summary first, then full fields + update compare */
   const renderChamberLogFormView = (log, { enableCopyRef = false } = {}) => {
     if (!log) return null;
     const tempVal = log.chamber_temp ?? log.box_temp;
@@ -1208,7 +1209,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             <div>
               <div style={{ fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Time / Shift</div>
               <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a', marginTop: 2 }}>
-                {log.inspection_time || '-'} Â· {shiftLabel}
+                {log.inspection_time || '-'} · {shiftLabel}
               </div>
             </div>
             <div>
@@ -1221,7 +1222,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   color: tempVal == null ? '#0f172a' : tempOutOfRange ? tempAlertColor : tempOkColor
                 }}
               >
-                {tempVal != null ? `${tempVal}Â°C` : '-'}
+                {tempVal != null ? `${tempVal}°C` : '-'}
               </div>
               <div
                 style={{
@@ -1232,7 +1233,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 }}
               >
                 {typeLabel}
-                {tempOutOfRange && tempRange ? ` Â· ${tempRange.label}` : ''}
+                {tempOutOfRange && tempRange ? ` · ${tempRange.label}` : ''}
               </div>
             </div>
             <div>
@@ -1255,11 +1256,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 Updated {Number(log.update_count) > 0 ? log.update_count : updateRows.length}{' '}
                 {Number(log.update_count) === 1 ? 'time' : 'times'}
                 {formatUpdatedAtStr(log.created_at, log.updated_at) !== '-'
-                  ? ` Â· Last: ${formatUpdatedAtStr(log.created_at, log.updated_at)}`
+                  ? ` · Last: ${formatUpdatedAtStr(log.created_at, log.updated_at)}`
                   : ''}
               </div>
               {updateRows.length > 0
-                ? renderFieldCompareTable(updateRows, { title: 'Before â†’ After' })
+                ? renderFieldCompareTable(updateRows, { title: 'Before → After' })
                 : (
                   <div style={{ fontSize: '0.78rem', color: '#9a3412' }}>
                     This record was updated, but field-level before/after details were not saved.
@@ -1268,7 +1269,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             </div>
           ) : (
             <div style={{ marginTop: 12, fontSize: '0.78rem', fontWeight: 700, color: '#64748b' }}>
-              No updates yet â€” original submitted values below.
+              No updates yet — original submitted values below.
             </div>
           )}
         </div>
@@ -1288,8 +1289,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             {formField('Inspection Time', log.inspection_time || '-')}
             {formField('Shift', shiftLabel)}
             {formField(
-              'Box Temp (Â°C)',
-              tempVal != null ? `${tempVal}Â°C` : '-',
+              'Box Temp (°C)',
+              tempVal != null ? `${tempVal}°C` : '-',
               {
                 valueStyle: {
                   fontWeight: 700,
@@ -1305,7 +1306,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             {tempOutOfRange && tempRange
               ? formField(
                   'Compliance',
-                  `${tempDeviation === 'low' ? '< kam' : '> zyada'} Â· allowed ${tempRange.label}`,
+                  `${tempDeviation === 'low' ? '< kam' : '> zyada'} · allowed ${tempRange.label}`,
                   { valueStyle: { fontWeight: 700, color: tempAlertColor }, full: true }
                 )
               : null}
@@ -1344,7 +1345,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               'Update Count',
               Number(log.update_count) > 0 ? String(log.update_count) : '0'
             )}
-            {formField('Remarks', log.remarks || 'â€”', { full: true })}
+            {formField('Remarks', log.remarks || '—', { full: true })}
           </div>
         </div>
       </>
@@ -1515,7 +1516,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // User switched SA menu away from Daily Box Tracker â€” clear detail without extra history.back().
+  // User switched SA menu away from Daily Box Tracker — clear detail without extra history.back().
   useEffect(() => {
     if (activeMenu === 'daily_box_tracker') return;
     if (!boxDayHistoryRef.current && !deltasViewClientRef.current) return;
@@ -1607,7 +1608,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   const [subAdminSelectedClients, setSubAdminSelectedClients] = useState([]);
   const [subAdminSelectedWarehouses, setSubAdminSelectedWarehouses] = useState([]);
 
-  // Customer Reports (from Customer portal â†’ customer_reports table)
+  // Customer Reports (from Customer portal → customer_reports table)
   const [customerReports, setCustomerReports] = useState([]);
   const [loadingCustomerReports, setLoadingCustomerReports] = useState(false);
   const [customerReportsError, setCustomerReportsError] = useState('');
@@ -2262,7 +2263,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         warehouse_name: op.warehouse_name,
         operator_email: op.email
       });
-      const typeLabel = `Updated ${chamberName} type ${currentType || 'Frozen'} â†’ ${nextType}.`;
+      const typeLabel = `Updated ${chamberName} type ${currentType || 'Frozen'} → ${nextType}.`;
       pushOpMasterChange('type', typeLabel);
       await refreshOperatorProfileMaster(op, typeLabel);
     } catch (err) {
@@ -2361,7 +2362,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       setOpNewChamberName('');
       setOpNewChamberType('Frozen');
       const addedLabel = `Added chamber "${created.name || name}"${
-        newLimit ? ` Â· limit ${newLimit}` : ''
+        newLimit ? ` · limit ${newLimit}` : ''
       }.`;
       pushOpMasterChange('chamber', addedLabel);
       await refreshOperatorProfileMaster(op, addedLabel);
@@ -2554,7 +2555,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       operatorLabel: pr.operator_email || 'DO',
       summary: [parsed.module, parsed.client !== '-' ? parsed.client : null]
         .filter(Boolean)
-        .join(' Â· ')
+        .join(' · ')
     });
   };
 
@@ -2580,13 +2581,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       const res = await updatePermissionRequest(id, status, note);
       loadPermissionRequests();
       loadActivities();
-      // Chamber Add approve bumps chamber_limit â€” refresh Operators Directory
+      // Chamber Add approve bumps chamber_limit — refresh Operators Directory
       if (status === 'Approved') {
         loadOperatorsData();
       }
       if (res?.chamber_add?.ok) {
         setOpSuccess(
-          `Chamber "${res.chamber_add.name}" added. Operator limit â†’ ${res.chamber_add.chamber_limit}.`
+          `Chamber "${res.chamber_add.name}" added. Operator limit → ${res.chamber_add.chamber_limit}.`
         );
       } else if (res?.client_master?.ok) {
         const cm = res.client_master;
@@ -2697,7 +2698,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       info.client = nameMatch ? nameMatch[1] : 'Chamber';
       info.refNo = 'TYPE';
       info.extra = fromTo
-        ? `${fromTo[1]} â†’ ${fromTo[2]}`
+        ? `${fromTo[1]} → ${fromTo[2]}`
         : (descText || 'Data Operator requested Super Admin approval to change chamber type.');
       return info;
     } else if (
@@ -2730,9 +2731,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         (descText || '').match(/client master "([^"]+)"/i) ||
         (descText || '').match(/client "([^"]+)"/i);
       const chamberMatch = (descText || '').match(/on chamber "([^"]+)"/i);
-      const renameTo = (descText || '').match(/EDIT client "[^"]+"\s*(?:â†’|->)\s*"([^"]+)"/i);
+      const renameTo = (descText || '').match(/EDIT client "[^"]+"\s*(?:→|->)\s*"([^"]+)"/i);
       info.client = renameTo
-        ? `${clientMatch ? clientMatch[1] : 'Client'} â†’ ${renameTo[1]}`
+        ? `${clientMatch ? clientMatch[1] : 'Client'} → ${renameTo[1]}`
         : (clientMatch ? clientMatch[1] : 'Client');
       info.refNo = isDelete ? 'DELETE' : isRename ? 'RENAME' : 'ADD';
       info.extra = chamberMatch
@@ -2798,7 +2799,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
   };
 
   const formatAllowDate = (value) => {
-    if (!value) return 'â€”';
+    if (!value) return '—';
     try {
       return new Date(value).toLocaleString('en-GB', {
         day: '2-digit',
@@ -2833,16 +2834,16 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         Approval & Update Comparison
       </div>
       <p style={{ margin: '0 0 12px 0', fontSize: '0.74rem', color: '#64748b' }}>
-        After Super Admin approval â€” compare previous and updated values, remarks, and decision date
+        After Super Admin approval — compare previous and updated values, remarks, and decision date
       </p>
 
       {hasCompare ? (
         <div style={{ marginBottom: 12, padding: 12, borderRadius: 10, border: '1px solid #86efac', background: '#f0fdf4' }}>
           <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#15803d', marginBottom: 4 }}>
             Latest field changes after approval / update
-            {Number(logForCompare?.update_count) > 0 ? ` Â· Edit #${logForCompare.update_count}` : ''}
+            {Number(logForCompare?.update_count) > 0 ? ` · Edit #${logForCompare.update_count}` : ''}
           </div>
-          {renderFieldCompareTable(latestCompareRows, { title: 'Compare: Before â†’ After' })}
+          {renderFieldCompareTable(latestCompareRows, { title: 'Compare: Before → After' })}
           {(() => {
             const lastUpd = formatUpdatedAtStr(
               logForCompare?.created_at || logForCompare?.inward_created_at || logForCompare?.outward_created_at,
@@ -2858,7 +2859,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       ) : null}
 
       {loadingAllowHistory ? (
-        <SaDataLoading label="Loading approval historyâ€¦" compact />
+        <SaDataLoading label="Loading approval history…" compact />
       ) : !hasTrail ? (
         <div style={{ padding: '10px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.8rem' }}>
           {hasCompare
@@ -2915,7 +2916,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     background: '#f1f5f9',
                     color: '#475569'
                   }}>
-                    {ev.request_type || 'â€”'}
+                    {ev.request_type || '—'}
                   </span>
                   <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 700, color: '#0f172a' }}>
                     {formatAllowDate(ev.date)}
@@ -2925,7 +2926,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, fontSize: '0.78rem' }}>
                   <div>
                     <div style={{ fontSize: '0.66rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Decision</div>
-                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{ev.decision || ev.action || 'â€”'}</div>
+                    <div style={{ fontWeight: 700, color: '#0f172a' }}>{ev.decision || ev.action || '—'}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.66rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Operator</div>
@@ -3197,7 +3198,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       const respTo = toApiDateParam(data?.toDate) || to;
       if (respFrom !== from || respTo !== to) {
         setDoTaskError(
-          `Server returned ${respFrom} â†’ ${respTo} instead of ${from} â†’ ${to}. Restart backend to enable date range.`
+          `Server returned ${respFrom} → ${respTo} instead of ${from} → ${to}. Restart backend to enable date range.`
         );
       }
       const nextOperators = Array.isArray(data?.operators)
@@ -3301,7 +3302,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     }
   };
 
-  // Menu-driven data loading â€” fetch the datasets each sidebar section needs
+  // Menu-driven data loading — fetch the datasets each sidebar section needs
   useEffect(() => {
     if (activeMenu === 'dashboard') {
       loadOperatorsData();
@@ -3418,7 +3419,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           date: log.formatted_date || (log.entry_date ? String(log.entry_date).split('T')[0] : ''),
           facility: log.warehouse_name || 'Generic',
           client: log.client_name,
-          details: `Chamber: ${log.chamber_name} | Temp: ${log.chamber_temp}Â°C`,
+          details: `Chamber: ${log.chamber_name} | Temp: ${log.chamber_temp}°C`,
           original: log
         });
       });
@@ -3431,7 +3432,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           date: log.inward_entry_date ? String(log.inward_entry_date).split('T')[0] : '',
           facility: log.warehouse_name || 'Generic',
           client: log.inward_client_name,
-          details: `Vehicle: ${log.inward_vehicle_no} | Temp: ${log.inward_vehicle_temp}Â°C | Pallets: ${log.inward_pallets_in_qty}`,
+          details: `Vehicle: ${log.inward_vehicle_no} | Temp: ${log.inward_vehicle_temp}°C | Pallets: ${log.inward_pallets_in_qty}`,
           original: log
         });
       });
@@ -3444,7 +3445,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           date: log.outward_entry_date ? String(log.outward_entry_date).split('T')[0] : '',
           facility: log.warehouse_name || 'Generic',
           client: log.outward_client_name,
-          details: `Vehicle: ${log.outward_vehicle_no} | Temp: ${log.outward_vehicle_temp}Â°C | Pallets: ${log.outward_pallets_qty || log.outward_pallets_in_qty || 0}`,
+          details: `Vehicle: ${log.outward_vehicle_no} | Temp: ${log.outward_vehicle_temp}°C | Pallets: ${log.outward_pallets_qty || log.outward_pallets_in_qty || 0}`,
           original: log
         });
       });
@@ -3728,7 +3729,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
   const handleExportLogsExcel = async () => {
     setLogsExportLoading(true);
-    setLogsExportProgressLabel('Exportingâ€¦');
+    setLogsExportProgressLabel('Exporting…');
     setExportError(null);
     if (exportAbortRef.current) exportAbortRef.current.abort();
     exportAbortRef.current = new AbortController();
@@ -3764,7 +3765,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       throw new Error('No data available to export.');
     }
 
-    setLogsExportProgressLabel('Building fileâ€¦');
+    setLogsExportProgressLabel('Building file…');
 
     const extractFilenames = (pathStr) => {
       if (!pathStr) return '';
@@ -3819,7 +3820,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     if (historyTab === 'daily') {
       const headers = [
         "Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Chamber Name",
-        "Client Code", "Client Name", "Shift", "Inspection Time", "Box Temperature (Â°C)", "Supervisor Name",
+        "Client Code", "Client Name", "Shift", "Inspection Time", "Box Temperature (°C)", "Supervisor Name",
         "Sensor Photo Name", "Photo Capture Time", "Photo Location (GPS)", "Time Variance (minutes)", "Box Count",
         "Chamber Type", "Overdue Status/Time", "Edit Details Log", "Edit Count", "Created At", "Updated At"
       ];
@@ -3835,7 +3836,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         log.client_name || '',
         resolveShiftLabel(log.shift, log.inspection_time, log.created_at),
         log.inspection_time || '',
-        log.chamber_temp !== undefined ? `${log.chamber_temp}Â°C` : (log.box_temp !== undefined ? `${log.box_temp}Â°C` : ''),
+        log.chamber_temp !== undefined ? `${log.chamber_temp}°C` : (log.box_temp !== undefined ? `${log.box_temp}°C` : ''),
         log.monitor_supervisor_name || '',
         extractFilenames(log.temp_sensor_image),
         log.photo_capture_time || '',
@@ -3860,7 +3861,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     } else if (historyTab === 'inward') {
       const headers = [
         "Inward Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Vehicle No", "Seal No", "Invoice No", "Mens Power",
-        "Vehicle Temp (Â°C)", "Material Temp (Â°C)", "Transporter Name", "Driver Name", "Driver Contact No.", 
+        "Vehicle Temp (°C)", "Material Temp (°C)", "Transporter Name", "Driver Name", "Driver Contact No.", 
         "Client Code", "Client Name", "Dock No", "Vehicle Reporting Time", "Unloading Start Time", "Unloading Duration", 
         "Unloading End Time", "Pallets Qty", "Invoice Qty", "Received Pallets", 
         "Received Boxes", "Short Received Boxes", "Excess Received Boxes", "Damage Received Boxes", "Material Type", 
@@ -3879,8 +3880,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           log.inward_seal_no || '',
           log.inward_invoice_no || '',
           log.inward_mens_power !== undefined && log.inward_mens_power !== null ? log.inward_mens_power : '',
-          log.inward_vehicle_temp !== undefined ? `${log.inward_vehicle_temp}Â°C` : '',
-          log.inward_material_temp !== undefined ? `${log.inward_material_temp}Â°C` : '',
+          log.inward_vehicle_temp !== undefined ? `${log.inward_vehicle_temp}°C` : '',
+          log.inward_material_temp !== undefined ? `${log.inward_material_temp}°C` : '',
           log.inward_transporter_name || '',
           log.inward_driver_name || '',
           log.inward_driver_no || '',
@@ -3923,7 +3924,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     } else if (historyTab === 'outward') {
       const headers = [
         "Outward Log ID", "Reference No", "Date", "Warehouse Code", "Warehouse Name", "Operator Email", "Vehicle No", "Seal No", "Invoice No", "Mens Power",
-        "Vehicle Temp (Â°C)", "Pre-Cooling Temp (Â°C)", "Material Temp (Â°C)", "Transporter Name", "Driver Name", 
+        "Vehicle Temp (°C)", "Pre-Cooling Temp (°C)", "Material Temp (°C)", "Transporter Name", "Driver Name", 
         "Driver Contact No.", "Client Code", "Client Name", "Dock No", "Vehicle Reporting Time", "Loading Start Time", 
         "Loading Duration", "Loading End Time", "Pallets Qty", "Invoice Qty", 
         "Loaded Pallets", "Loaded Boxes", "Short Loaded Boxes", "Excess Loaded Boxes", "Damage Loaded Boxes", "Material Type", 
@@ -3942,9 +3943,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           log.outward_seal_no || '',
           log.outward_invoice_no || '',
           log.outward_mens_power !== undefined && log.outward_mens_power !== null ? log.outward_mens_power : '',
-          log.outward_vehicle_temp !== undefined ? `${log.outward_vehicle_temp}Â°C` : '',
-          log.outward_pre_vehicle_temp !== undefined ? `${log.outward_pre_vehicle_temp}Â°C` : '',
-          log.outward_material_temp !== undefined ? `${log.outward_material_temp}Â°C` : '',
+          log.outward_vehicle_temp !== undefined ? `${log.outward_vehicle_temp}°C` : '',
+          log.outward_pre_vehicle_temp !== undefined ? `${log.outward_pre_vehicle_temp}°C` : '',
+          log.outward_material_temp !== undefined ? `${log.outward_material_temp}°C` : '',
           log.outward_transporter_name || '',
           log.outward_driver_name || '',
           log.outward_driver_no || '',
@@ -3989,7 +3990,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       setExportFailure(err, 'history');
     } finally {
       setLogsExportLoading(false);
-      setLogsExportProgressLabel('Exportingâ€¦');
+      setLogsExportProgressLabel('Exporting…');
     }
   };
 
@@ -4141,7 +4142,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       };
 
       if (editingOp) {
-        setOpProcessStatus('Updating operator profile & Warehouse / Data Accessâ€¦');
+        setOpProcessStatus('Updating operator profile & Warehouse / Data Access…');
         const updated = await updateOperator(editingOp.id, payload);
         const synced = Number(updated?.past_logs_synced || 0);
         setOpSuccess(
@@ -4150,10 +4151,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             : 'Operator profile & Warehouse / Data Access updated successfully.'
         );
       } else {
-        setOpProcessStatus('Creating operator accountâ€¦');
+        setOpProcessStatus('Creating operator account…');
         // Yield so overlay paints before the network/email wait
         await new Promise((r) => setTimeout(r, 50));
-        setOpProcessStatus('Creating account & sending credentials emailâ€¦');
+        setOpProcessStatus('Creating account & sending credentials email…');
         const created = await createOperator(payload);
         if (created?.emailSent) {
           setOpProcessStatus('Email sent successfully.');
@@ -4161,7 +4162,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         } else if (created?.emailSkipped) {
           setOpSuccess(
             created?.emailError
-              || 'Data operator registered. Email skipped â€” set SMTP_USER and SMTP_PASS (Gmail App Password) in backend .env and restart server.'
+              || 'Data operator registered. Email skipped — set SMTP_USER and SMTP_PASS (Gmail App Password) in backend .env and restart server.'
           );
         } else {
           setOpSuccess(
@@ -4442,7 +4443,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         date: task.date,
         facility: log.warehouse_name || op?.warehouse_name || 'Generic',
         client: task.client_name,
-        details: `${task.chamber_name} Â· ${task.shift} Â· ${log.chamber_temp != null ? `${log.chamber_temp}Â°C` : 'â€”'}`,
+        details: `${task.chamber_name} · ${task.shift} · ${log.chamber_temp != null ? `${log.chamber_temp}°C` : '—'}`,
         original: log
       }]);
     };
@@ -4524,7 +4525,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
     cancelEditOperator();
   };
 
-  /** Register/list screen â€” closes DO profile so the form is visible (not task-status profile). */
+  /** Register/list screen — closes DO profile so the form is visible (not task-status profile). */
   const openDataOperatorsHome = () => {
     setViewingOperator(null);
     setEditingOp(null);
@@ -4666,7 +4667,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       const whCode = String(c.warehouse_code || '').trim().toLowerCase();
       const whName = String(c.warehouse_name || '').trim().toLowerCase();
       if (selectedKeys.has(whCode) || selectedKeys.has(whName)) {
-        // Prefer display name â€” matches how scope is stored / used on mobile
+        // Prefer display name — matches how scope is stored / used on mobile
         pushOpt(
           c.client_name || c.client_code,
           formatMasterLabel(c.client_code, c.client_name)
@@ -4695,7 +4696,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       setSubAdminSelectedClients((prev) => (prev.length ? [] : prev));
       return;
     }
-    // Wait until options loaded â€” don't wipe saved clients while list still empty
+    // Wait until options loaded — don't wipe saved clients while list still empty
     if (!subAdminClientOptions.length) return;
     setSubAdminSelectedClients((prev) => {
       const allowed = new Set();
@@ -4721,7 +4722,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           return raw;
         })
         .filter((c) => c && allowed.has(String(c).trim().toLowerCase()));
-      // de-dupe after codeâ†’name normalize
+      // de-dupe after code→name normalize
       const seen = new Set();
       const deduped = [];
       next.forEach((c) => {
@@ -4767,13 +4768,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       };
 
       if (editingSubAdmin) {
-        setSubAdminProcessStatus('Updating Customer profileâ€¦');
+        setSubAdminProcessStatus('Updating Customer profile…');
         await updateSubAdmin(editingSubAdmin.id, payload);
         setSubAdminSuccess('Customer profile updated successfully.');
       } else {
-        setSubAdminProcessStatus('Creating Customer accountâ€¦');
+        setSubAdminProcessStatus('Creating Customer account…');
         await new Promise((r) => setTimeout(r, 50));
-        setSubAdminProcessStatus('Creating account & sending credentials emailâ€¦');
+        setSubAdminProcessStatus('Creating account & sending credentials email…');
         const created = await createSubAdmin(payload);
         if (created?.emailSent) {
           setSubAdminProcessStatus('Email sent successfully.');
@@ -4781,7 +4782,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         } else if (created?.emailSkipped) {
           setSubAdminSuccess(
             created?.emailError
-              || 'Customer registered. Email skipped â€” set SMTP_USER and SMTP_PASS (Gmail App Password) in backend .env and restart server.'
+              || 'Customer registered. Email skipped — set SMTP_USER and SMTP_PASS (Gmail App Password) in backend .env and restart server.'
           );
         } else {
           setSubAdminSuccess(
@@ -5510,7 +5511,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
       <button
         type="button"
         onClick={() => startSaEditLog(type, log)}
-        title="Edit (Super Admin â€” no permission required)"
+        title="Edit (Super Admin — no permission required)"
         disabled={saLogActionBusy}
         style={{
           backgroundColor: '#e0f2fe',
@@ -5530,7 +5531,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         type="button"
         className="btn-delete-log"
         onClick={() => handleSaDeleteLog(type, log)}
-        title="Delete (Super Admin â€” no permission required)"
+        title="Delete (Super Admin — no permission required)"
         disabled={saLogActionBusy}
         style={{
           backgroundColor: '#fee2e2',
@@ -5573,7 +5574,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             Cancel Edit
           </button>
           <span className="sa-edit-log-badge">
-            Super Admin direct edit Â· no permission required
+            Super Admin direct edit · no permission required
           </span>
         </div>
         <div className="sa-edit-log-body">
@@ -5582,7 +5583,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               <div className="page-lazy-loader" style={{ position: 'relative', minHeight: 280 }}>
                 <div className="page-lazy-loader-inner">
                   <span className="page-lazy-loader-spinner" />
-                  <span>Loading editorâ€¦</span>
+                  <span>Loading editor…</span>
                 </div>
               </div>
             }
@@ -5641,8 +5642,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         <div className="account-save-overlay" role="status" aria-live="polite">
           <div className="account-save-overlay-card">
             <Loader2 size={28} className="spinner-icon" color="#00a2e8" />
-            <strong>{savingOp ? (opProcessStatus || 'Processingâ€¦') : (subAdminProcessStatus || 'Processingâ€¦')}</strong>
-            <span>Please wait â€” account save and email are in progress.</span>
+            <strong>{savingOp ? (opProcessStatus || 'Processing…') : (subAdminProcessStatus || 'Processing…')}</strong>
+            <span>Please wait — account save and email are in progress.</span>
           </div>
         </div>
       )}
@@ -5650,7 +5651,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         <div className="sa-main-loading-overlay" role="status" aria-live="polite">
           <div className="sa-main-loading-card">
             <Loader2 size={36} className="spinner-icon" color="#0033a0" aria-hidden />
-            <strong>Loading dataâ€¦</strong>
+            <strong>Loading data…</strong>
             <span>Please wait while this section loads.</span>
           </div>
         </div>
@@ -6215,7 +6216,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
         </div>
       )}
 
-      {/* Body Content Viewport â€” sidebar stays visible; edit stays in this column only */}
+      {/* Body Content Viewport — sidebar stays visible; edit stays in this column only */}
       <main className="app-viewport secure-admin-viewport" style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
         {saEditLog ? (
           renderSaEditPanel()
@@ -6683,7 +6684,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <span className="sa-profile-confirm-label">Current Email</span>
                           <strong>{profileConfirmSummary.oldEmail}</strong>
                         </div>
-                        <div className="sa-profile-confirm-divider">â†’</div>
+                        <div className="sa-profile-confirm-divider">→</div>
                         <div className="sa-profile-confirm-item">
                           <span className="sa-profile-confirm-label">
                             {profileConfirmSummary.emailChanged ? 'New Email' : 'Email (unchanged)'}
@@ -6734,7 +6735,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       {profilePwdLoading ? (
                         <>
                           <Loader2 size={16} className="sa-profile-spin" />
-                          <span>Savingâ€¦</span>
+                          <span>Saving…</span>
                         </>
                       ) : (
                         <span>Confirm & Save</span>
@@ -6940,9 +6941,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           });
                         if (from === to && from === localDateStr()) return 'Today';
                         if (from === to) return fmt(from);
-                        return `${fmt(from)} â†’ ${fmt(to)}`;
+                        return `${fmt(from)} → ${fmt(to)}`;
                       })()}
-                      {' Â· Morning + Evening'}
+                      {' · Morning + Evening'}
                     </span>
                   </div>
                 </div>
@@ -6975,7 +6976,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     aria-label="DO tasks from date"
                   />
                 </label>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>â†’</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>→</span>
                 <label className="sa-dash-task-date-wrap" title="To date">
                   <input
                     className="sa-op-filter sa-dash-task-date"
@@ -7074,7 +7075,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <span>Total Outward</span>
                   <strong>{Number(doTaskSummary.total_outward) || 0}</strong>
                 </div>
-                <div className="sa-dash-task-metric inward-today" title={`Inward ${doTaskFromDate || 'â€”'} â†’ ${doTaskToDate || 'â€”'} (all DOs)`}>
+                <div className="sa-dash-task-metric inward-today" title={`Inward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'} (all DOs)`}>
                   <span>
                     {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
                       ? 'Today Inward'
@@ -7084,7 +7085,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   </span>
                   <strong>{Number(doTaskSummary.today_inward) || 0}</strong>
                 </div>
-                <div className="sa-dash-task-metric outward-today" title={`Outward ${doTaskFromDate || 'â€”'} â†’ ${doTaskToDate || 'â€”'} (all DOs)`}>
+                <div className="sa-dash-task-metric outward-today" title={`Outward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'} (all DOs)`}>
                   <span>
                     {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
                       ? 'Today Outward'
@@ -7109,7 +7110,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               ) : null}
 
               {loadingDoTasks && !doTaskOverview ? (
-                <div className="sa-dash-task-empty">Loading DO tasksâ€¦</div>
+                <div className="sa-dash-task-empty">Loading DO tasks…</div>
               ) : doTaskRows.length === 0 ? (
                 <div className="sa-dash-task-empty">
                   {doTaskSearch || doTaskFilter !== 'all'
@@ -7132,14 +7133,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <th>Morning</th>
                         <th>Evening</th>
                         <th>Overdue</th>
-                        <th title={`Inward ${doTaskFromDate || 'â€”'} â†’ ${doTaskToDate || 'â€”'}`}>
+                        <th title={`Inward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'}`}>
                           {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
                             ? 'Today In'
                             : doTaskFromDate === doTaskToDate
                               ? 'Day In'
                               : 'Period In'}
                         </th>
-                        <th title={`Outward ${doTaskFromDate || 'â€”'} â†’ ${doTaskToDate || 'â€”'}`}>
+                        <th title={`Outward ${doTaskFromDate || '—'} → ${doTaskToDate || '—'}`}>
                           {doTaskFromDate === doTaskToDate && doTaskFromDate === localDateStr()
                             ? 'Today Out'
                             : doTaskFromDate === doTaskToDate
@@ -7165,7 +7166,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         const dayLabel =
                           doTaskFromDate === doTaskToDate
                             ? doTaskFromDate || 'selected day'
-                            : `${doTaskFromDate || 'â€”'} â†’ ${doTaskToDate || 'â€”'}`;
+                            : `${doTaskFromDate || '—'} → ${doTaskToDate || '—'}`;
                         const tone =
                           overdue > 0
                             ? 'bad'
@@ -7179,7 +7180,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             key={`${op.id || op.email || op.name}-${idx}`}
                             className={`sa-dash-task-row tone-${tone}`}
                             onClick={() => openDoFromDashboard(op)}
-                            title={`${op.name || op.full_name || 'DO'} Â· Inward ${inToday} Â· Outward ${outToday} on ${dayLabel}`}
+                            title={`${op.name || op.full_name || 'DO'} · Inward ${inToday} · Outward ${outToday} on ${dayLabel}`}
                           >
                             <td className="sa-dash-task-td-status">
                               <span className="sa-dash-task-dot" />
@@ -7187,7 +7188,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             <td className="sa-dash-task-td-name">
                               <strong>{op.name || op.full_name || 'DO'}</strong>
                             </td>
-                            <td className="sa-dash-task-td-wh">{op.warehouse_name || 'â€”'}</td>
+                            <td className="sa-dash-task-td-wh">{op.warehouse_name || '—'}</td>
                             <td
                               className={`sa-dash-task-td-shift${mornPend > 0 ? ' pending' : mornExp > 0 ? ' done' : ''}`}
                             >
@@ -7235,7 +7236,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     <span className="pulsing-dot" style={{ position: 'relative', top: 'auto', right: 'auto' }} />
                   </h2>
                   <p className="sa-op-sub">
-                    {dashboardPendingRequests.length} pending â€” approve or deny directly from dashboard
+                    {dashboardPendingRequests.length} pending — approve or deny directly from dashboard
                   </p>
                 </div>
                 <div className="sa-op-dir-tools">
@@ -7245,7 +7246,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     onClick={() => loadPermissionRequests()}
                     disabled={loadingPermRequests}
                   >
-                    {loadingPermRequests ? 'Refreshingâ€¦' : 'Refresh'}
+                    {loadingPermRequests ? 'Refreshing…' : 'Refresh'}
                   </button>
                   <button
                     type="button"
@@ -7299,13 +7300,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             <strong>{renderOperatorEmail(pr.operator_email)}</strong>
                             <em>
                               {parsed.module}
-                              {' Â· '}
+                              {' · '}
                               {warehouse}
-                              {' Â· '}
+                              {' · '}
                               {requestType}
                             </em>
                             <span className="sa-dash-perm-desc">
-                              {parsed.client !== '-' ? `${parsed.client} Â· ` : ''}
+                              {parsed.client !== '-' ? `${parsed.client} · ` : ''}
                               {(pr.description || '').split(' | ')[0] || 'Permission request'}
                             </span>
                             {(pr.remark || pr.request_remark) ? (
@@ -7421,7 +7422,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             gap: '4px'
                           }}
                         >
-                          â† Back
+                          ← Back
                         </button>
                         <div>
                           <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-dark)' }}>
@@ -7735,7 +7736,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
                 {/* Inventory Table */}
                 {loadingInventory ? (
-                  <SaDataLoading label="Calculating inventory stock reconciliationâ€¦" />
+                  <SaDataLoading label="Calculating inventory stock reconciliation…" />
                 ) : inventoryLogs.length === 0 ? (
                   <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <span>No stock records found matching filters.</span>
@@ -7814,7 +7815,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                       fontWeight: '800',
                                       fontSize: '0.74rem'
                                     }}>
-                                      âœ“ Matched
+                                      ✓ Matched
                                     </span>
                                   )}
                                 </td>
@@ -7855,7 +7856,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
             return Math.max(0, Number(row.calculated_balance) || 0);
           };
 
-          // Lot rows â†’ one row per client (+ warehouse). In/Out are client-warehouse totals (not sum of chambers).
+          // Lot rows → one row per client (+ warehouse). In/Out are client-warehouse totals (not sum of chambers).
           const lotRows = (dailyDeltas || [])
             .filter((row) => {
               if (!row || !row.client_name) return false;
@@ -8024,7 +8025,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       color: 'var(--text-dark)',
                       lineHeight: 1.1
                     }}>
-                      {loadingDeltas ? 'â€¦' : total.toLocaleString()}
+                      {loadingDeltas ? '…' : total.toLocaleString()}
                     </span>
                     <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                       left now
@@ -8085,8 +8086,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
           };
 
           const clientCountLabel = deltasWarehouseFilter === 'All'
-            ? `Showing ${filteredRows.length} clients Â· ${totalBoxes.toLocaleString()} left`
-            : `${deltasWarehouseFilter}: ${filteredRows.length} clients Â· ${totalBoxes.toLocaleString()} left`;
+            ? `Showing ${filteredRows.length} clients · ${totalBoxes.toLocaleString()} left`
+            : `${deltasWarehouseFilter}: ${filteredRows.length} clients · ${totalBoxes.toLocaleString()} left`;
 
           const pageStart = (deltasCurrentPage - 1) * deltasPerPage;
           const paginatedRows = filteredRows.slice(pageStart, pageStart + deltasPerPage);
@@ -8130,14 +8131,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   monthSheetPage * monthSheetPerPage
                 );
                 const fmtDay = (ymd) => {
-                  if (!ymd) return 'â€”';
+                  if (!ymd) return '—';
                   const p = String(ymd).split('-');
                   if (p.length === 3) {
                     const dt = new Date(`${ymd}T12:00:00`);
                     const wd = Number.isNaN(dt.getTime())
                       ? ''
                       : dt.toLocaleDateString('en-GB', { weekday: 'short' });
-                    return wd ? `${wd} Â· ${p[2]}/${p[1]}/${p[0]}` : `${p[2]}/${p[1]}/${p[0]}`;
+                    return wd ? `${wd} · ${p[2]}/${p[1]}/${p[0]}` : `${p[2]}/${p[1]}/${p[0]}`;
                   }
                   return String(ymd);
                 };
@@ -8159,12 +8160,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           className="sa-box-back-btn"
                           onClick={() => closeClientMonthSheet()}
                         >
-                          â† Back to clients
+                          ← Back to clients
                         </button>
                         <div className="sa-box-day-heading">
                           <h2 className="sa-op-title">{meta.client_name || row.client_name}</h2>
                           <p className="sa-op-sub">
-                            {meta.warehouse_name || row.warehouse_name || 'â€”'}
+                            {meta.warehouse_name || row.warehouse_name || '—'}
                           </p>
                         </div>
                       </div>
@@ -8233,7 +8234,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       </div>
 
                       {loadingMonthSheet ? (
-                        <SaDataLoading label="Loading day-wise Received / Dispatch / Leftâ€¦" />
+                        <SaDataLoading label="Loading day-wise Received / Dispatch / Left…" />
                       ) : daysDesc.length === 0 ? (
                         <div className="sa-box-empty">No received/dispatch movement in this date range.</div>
                       ) : (
@@ -8244,7 +8245,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               Start + Received âˆ’ Dispatch = Left
                             </span>
                             <span className="sa-box-day-formula-hint">
-                              Sirf Received / Dispatch records Â· Start = previous Left
+                              Sirf Received / Dispatch records · Start = previous Left
                             </span>
                           </p>
                           <div className="sa-box-day-table-wrap table-responsive">
@@ -8320,7 +8321,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <div>
                     <h2 className="sa-op-title">Daily Box Inventory Tracker</h2>
                     <p className="sa-op-sub">
-                      Client stock by warehouse â€” click a client for day-wise Received / Dispatch / Left.
+                      Client stock by warehouse — click a client for day-wise Received / Dispatch / Left.
                     </p>
                   </div>
                   <div className="sa-op-dir-tools">
@@ -8404,7 +8405,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
                   <div className={`sa-box-live-badge${loadingDeltas ? ' loading' : ''}`}>
                     <span className="sa-box-live-dot" />
-                    {loadingDeltas ? 'Loading live DBâ€¦' : clientCountLabel}
+                    {loadingDeltas ? 'Loading live DB…' : clientCountLabel}
                   </div>
                 </div>
               </section>
@@ -8418,8 +8419,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     </h3>
                     <span className="sa-box-chart-sub">
                       {deltasWarehouseFilter === 'All' ? 'All Warehouses' : deltasWarehouseFilter}
-                      {deltasClientFilter !== 'All' ? ` Â· ${deltasClientFilter}` : ''}
-                      {' Â· '}
+                      {deltasClientFilter !== 'All' ? ` · ${deltasClientFilter}` : ''}
+                      {' · '}
                       Left {totalBoxes.toLocaleString()}
                     </span>
                   </div>
@@ -8431,8 +8432,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div className="sa-box-table-head">
                   <h3 className="sa-op-title">
                     {deltasWarehouseFilter === 'All'
-                      ? 'All Warehouses â€” Client Stock'
-                      : `${deltasWarehouseFilter} â€” Client Stock`}
+                      ? 'All Warehouses — Client Stock'
+                      : `${deltasWarehouseFilter} — Client Stock`}
                   </h3>
                   <div className="sa-box-table-meta">
                     <span>
@@ -8451,7 +8452,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 </div>
 
                 {loadingDeltas ? (
-                  <SaDataLoading label="Loading client stockâ€¦" />
+                  <SaDataLoading label="Loading client stock…" />
                 ) : filteredRows.length === 0 ? (
                   <div className="sa-box-empty">No clients match this filter.</div>
                 ) : (
@@ -8561,10 +8562,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     <h2 className="sa-op-title">System History Database Logs</h2>
                     <p className="sa-op-sub">
                       {historyTab === 'daily'
-                        ? 'Chamber temperature inspection history â€” filter by warehouse, shift, search, or date'
+                        ? 'Chamber temperature inspection history — filter by warehouse, shift, search, or date'
                         : historyTab === 'inward'
-                          ? 'Inward receiving & unloading history â€” filter by warehouse, search, or date'
-                          : 'Outward loading & dispatch history â€” filter by warehouse, search, or date'}
+                          ? 'Inward receiving & unloading history — filter by warehouse, search, or date'
+                          : 'Outward loading & dispatch history — filter by warehouse, search, or date'}
                     </p>
                   </div>
                   <div className="sa-op-dir-tools">
@@ -8619,8 +8620,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       type="search"
                       placeholder={
                         historyTab === 'daily'
-                          ? 'Ref No, client, chamber, supervisorâ€¦'
-                          : 'Ref No, vehicle, client, supervisorâ€¦'
+                          ? 'Ref No, client, chamber, supervisor…'
+                          : 'Ref No, vehicle, client, supervisor…'
                       }
                       value={logsSearch}
                       onChange={(e) => setLogsSearch(e.target.value)}
@@ -8723,7 +8724,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       onClick={() => {
                         exportAbortRef.current?.abort();
                         setLogsExportLoading(false);
-                        setLogsExportProgressLabel('Exportingâ€¦');
+                        setLogsExportProgressLabel('Exporting…');
                       }}
                     >
                       Cancel
@@ -8743,7 +8744,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 )}
 
                 {loadingLogs ? (
-                  <SaDataLoading label="Loading system database logsâ€¦" />
+                  <SaDataLoading label="Loading system database logs…" />
                 ) : getFilteredHistoryLogs().length === 0 ? (
                   <div className="sa-op-empty">
                     <Database size={28} />
@@ -8771,7 +8772,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               <th>Client Name</th>
                               <th>Shift</th>
                               <th>Inspection Time</th>
-                              <th>Temp (Â°C)</th>
+                              <th>Temp (°C)</th>
                               <th>Chamber Type</th>
                               <th>Supervisor</th>
                               <th style={{ textAlign: 'center' }}>Actions</th>
@@ -8828,7 +8829,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                        const rowOor = rowDev != null;
                        const rowTypeLabel =
                          rowDev === 'low' ? `< ${rowType}` : rowDev === 'high' ? `> ${rowType}` : rowType;
-                       const tempText = formatTempDisplay(rowTemp) || (rowTemp != null ? `${rowTemp}Â°C` : 'â€”');
+                       const tempText = formatTempDisplay(rowTemp) || (rowTemp != null ? `${rowTemp}°C` : '—');
                        return (
                       <tr key={log.id}>
                         <td style={{ padding: '12px 16px', fontWeight: '600' }}>
@@ -8966,8 +8967,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <td style={{ padding: '12px 16px' }}>{log.inward_mens_power != null && log.inward_mens_power !== '' ? log.inward_mens_power : '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{log.inward_client_name}</td>
                         <td style={{ padding: '12px 16px' }}>{log.inward_dock_no || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{log.inward_vehicle_temp}Â°C</td>
-                        <td style={{ padding: '12px 16px' }}>{log.inward_material_temp}Â°C</td>
+                        <td style={{ padding: '12px 16px' }}>{log.inward_vehicle_temp}°C</td>
+                        <td style={{ padding: '12px 16px' }}>{log.inward_material_temp}°C</td>
                         <td style={{ padding: '12px 16px' }}>{log.inward_pallets_in_qty}</td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ fontWeight: 700 }}>
@@ -9034,8 +9035,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <td style={{ padding: '12px 16px' }}>{log.outward_mens_power != null && log.outward_mens_power !== '' ? log.outward_mens_power : '-'}</td>
                         <td style={{ padding: '12px 16px' }}>{log.outward_client_name}</td>
                         <td style={{ padding: '12px 16px' }}>{log.outward_dock_no || '-'}</td>
-                        <td style={{ padding: '12px 16px' }}>{log.outward_vehicle_temp}Â°C</td>
-                        <td style={{ padding: '12px 16px' }}>{log.outward_material_temp}Â°C</td>
+                        <td style={{ padding: '12px 16px' }}>{log.outward_vehicle_temp}°C</td>
+                        <td style={{ padding: '12px 16px' }}>{log.outward_material_temp}°C</td>
                         <td style={{ padding: '12px 16px' }}>{log.outward_pallets_in_qty || '-'}</td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ fontWeight: 700 }}>
@@ -9112,7 +9113,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             (searchedRecordType === 'inward' && 'Inward') ||
                             (searchedRecordType === 'outward' && 'Outward') ||
                             'Log'}
-                          {' Â· '}
+                          {' · '}
                           {searchedRecord.warehouse_name ||
                             searchedRecord.chamber_name ||
                             searchedRecord.inward_client_name ||
@@ -9279,11 +9280,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <div className="profile-grid-list">
                             <div className="profile-item">
                               <span className="profile-label">Vehicle Temp</span>
-                              <span className="profile-value">{searchedRecord.inward_vehicle_temp !== null ? `${searchedRecord.inward_vehicle_temp}Â°C` : '-'}</span>
+                              <span className="profile-value">{searchedRecord.inward_vehicle_temp !== null ? `${searchedRecord.inward_vehicle_temp}°C` : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Material Temp</span>
-                              <span className="profile-value">{searchedRecord.inward_material_temp !== null ? `${searchedRecord.inward_material_temp}Â°C` : '-'}</span>
+                              <span className="profile-value">{searchedRecord.inward_material_temp !== null ? `${searchedRecord.inward_material_temp}°C` : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Pallets In Quantity</span>
@@ -9406,15 +9407,15 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <div className="profile-grid-list">
                             <div className="profile-item">
                               <span className="profile-label">Pre-Cooling Temp</span>
-                              <span className="profile-value">{searchedRecord.outward_pre_vehicle_temp !== null ? `${searchedRecord.outward_pre_vehicle_temp}Â°C` : '-'}</span>
+                              <span className="profile-value">{searchedRecord.outward_pre_vehicle_temp !== null ? `${searchedRecord.outward_pre_vehicle_temp}°C` : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Loading Temp</span>
-                              <span className="profile-value">{searchedRecord.outward_vehicle_temp !== null ? `${searchedRecord.outward_vehicle_temp}Â°C` : '-'}</span>
+                              <span className="profile-value">{searchedRecord.outward_vehicle_temp !== null ? `${searchedRecord.outward_vehicle_temp}°C` : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Material Temp</span>
-                              <span className="profile-value">{searchedRecord.outward_material_temp !== null ? `${searchedRecord.outward_material_temp}Â°C` : '-'}</span>
+                              <span className="profile-value">{searchedRecord.outward_material_temp !== null ? `${searchedRecord.outward_material_temp}°C` : '-'}</span>
                             </div>
                             <div className="profile-item">
                               <span className="profile-label">Pallets Out Quantity</span>
@@ -9692,7 +9693,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       <Search size={14} />
                       <input
                         type="search"
-                        placeholder="Ref No, vehicle, client, supervisorâ€¦"
+                        placeholder="Ref No, vehicle, client, supervisor…"
                         value={lookupQuery}
                         onChange={(e) => setLookupQuery(e.target.value)}
                         onKeyDown={(e) => {
@@ -9739,16 +9740,16 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           >
                             <span className="sa-op-avatar">{initials}</span>
                             <span className="sa-op-sender">
-                              <strong>{res.reference_no || `No Ref Â· ${res.date || 'â€”'}`}</strong>
+                              <strong>{res.reference_no || `No Ref · ${res.date || '—'}`}</strong>
                               <em>{res.label}</em>
                             </span>
                             <span className="sa-op-snippet">
-                              {res.client || 'â€”'}
-                              {' Â· '}
-                              {res.facility || 'â€”'}
-                              {res.details ? ` Â· ${res.details}` : ''}
+                              {res.client || '—'}
+                              {' · '}
+                              {res.facility || '—'}
+                              {res.details ? ` · ${res.details}` : ''}
                             </span>
-                            <span className="sa-op-date">{res.date || 'â€”'}</span>
+                            <span className="sa-op-date">{res.date || '—'}</span>
                           </button>
                           <div className="sa-op-row-actions">
                             <button
@@ -9861,7 +9862,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       onClick={loadActivities}
                       disabled={loadingActivities}
                     >
-                      {loadingActivities ? 'Refreshingâ€¦' : 'Refresh'}
+                      {loadingActivities ? 'Refreshing…' : 'Refresh'}
                     </button>
                   </div>
                 </div>
@@ -9894,7 +9895,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <Search size={14} />
                         <input
                           type="search"
-                          placeholder="Search email, action, descriptionâ€¦"
+                          placeholder="Search email, action, description…"
                           value={activitiesSearch}
                           onChange={(e) => {
                             setActivitiesSearch(e.target.value);
@@ -10004,7 +10005,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     )}
 
                     {loadingActivities ? (
-                      <SaDataLoading label="Loading activity history logsâ€¦" />
+                      <SaDataLoading label="Loading activity history logs…" />
                     ) : paginatedActivities.length === 0 ? (
                       <div className="sa-op-empty">No operator activities found matching the filters.</div>
                     ) : (
@@ -10046,7 +10047,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                     <td style={{ padding: '6px 8px' }}>
                                       {isDecisionAction
                                         ? renderDecidedByCell(act)
-                                        : <span style={{ color: '#94a3b8' }}>â€”</span>}
+                                        : <span style={{ color: '#94a3b8' }}>—</span>}
                                     </td>
                                     <td style={{ padding: '6px 8px', color: '#475569', fontWeight: 600 }}>
                                       {operatorWarehouseMap[act.operator_email ? act.operator_email.toLowerCase() : ''] || 'System / Admin'}
@@ -10093,7 +10094,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                       })()}
                                     </td>
                                     <td style={{ padding: '6px 8px', color: '#0f766e', fontWeight: 600, fontSize: '0.72rem', maxWidth: 180 }}>
-                                      {act.remark || 'â€”'}
+                                      {act.remark || '—'}
                                     </td>
                                     <td style={{ padding: '6px 8px', color: '#64748b', fontSize: '0.72rem' }}>
                                       {new Date(act.created_at).toLocaleString('en-GB', {
@@ -10324,7 +10325,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     )}
 
                     {loadingActivities ? (
-                      <SaDataLoading label="Loading security logsâ€¦" />
+                      <SaDataLoading label="Loading security logs…" />
                     ) : paginatedSecurityLogs.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                         <span>No permission or security logs found matching the filters.</span>
@@ -10605,7 +10606,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     )}
 
                     {loadingActivities ? (
-                      <SaDataLoading label="Loading system logsâ€¦" />
+                      <SaDataLoading label="Loading system logs…" />
                     ) : paginatedSystemLogs.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                         <span>No system or error logs found matching the filters.</span>
@@ -10882,7 +10883,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       );
                     })()}
 
-                    {/* Recent decisions â€” who (Sub Admin / Super Admin name + email) approved or denied */}
+                    {/* Recent decisions — who (Sub Admin / Super Admin name + email) approved or denied */}
                     {(() => {
                       const decidedRows = filterDecidedPermissionRequests(
                         permissionRequests,
@@ -10894,7 +10895,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <div style={{ backgroundColor: 'var(--surface)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                           <h3 style={{ fontSize: '0.9rem', fontWeight: 800, margin: '0 0 12px 0', color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Users size={18} color="#0369a1" />
-                            <span>Permission audit â€” who approved / denied</span>
+                            <span>Permission audit — who approved / denied</span>
                           </h3>
                           <p style={{ margin: '0 0 12px 0', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
                             Shows Sub Admin / Super Admin <strong>name</strong> and <strong>email</strong> for each decision.
@@ -10940,10 +10941,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         </td>
                                         <td style={{ padding: '6px 8px' }}>{renderDecidedByCell(pr)}</td>
                                         <td style={{ padding: '6px 8px', fontWeight: 700, color: '#475569' }}>
-                                          {pr.record_type || 'â€”'}
+                                          {pr.record_type || '—'}
                                         </td>
                                         <td style={{ padding: '6px 8px', color: '#0f766e', fontWeight: 600, maxWidth: 220 }}>
-                                          {pr.admin_remark || pr.remark || 'â€”'}
+                                          {pr.admin_remark || pr.remark || '—'}
                                         </td>
                                         <td style={{ padding: '6px 8px', color: '#64748b', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                                           {pr.created_at
@@ -10955,7 +10956,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                                 minute: '2-digit',
                                                 hour12: true
                                               })
-                                            : 'â€”'}
+                                            : '—'}
                                         </td>
                                       </tr>
                                     );
@@ -11006,7 +11007,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   </h2>
                   <p className="sa-op-sub">
                     {editingSubAdmin
-                      ? `Update ${editingSubAdmin.email || 'customer'} â€” warehouse and client access apply to their portal.`
+                      ? `Update ${editingSubAdmin.email || 'customer'} — warehouse and client access apply to their portal.`
                       : 'Add a new customer to the ReeferON system. Registered credentials grant dashboard and inquiry access.'}
                   </p>
                 </div>
@@ -11087,7 +11088,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             type={showPassword ? 'text' : 'password'}
                             name="subadmin-password"
                             autoComplete="new-password"
-                            placeholder={editingSubAdmin ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Enter login password'}
+                            placeholder={editingSubAdmin ? '••••••••' : 'Enter login password'}
                             value={subAdminPassword}
                             onChange={(e) => setSubAdminPassword(e.target.value)}
                             required={!editingSubAdmin}
@@ -11137,8 +11138,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         >
                           <option value="">
                             {warehouseSelectOptions.length === 0
-                              ? 'No warehouses yet â€” add them in Master Data'
-                              : 'Select warehouseâ€¦'}
+                              ? 'No warehouses yet — add them in Master Data'
+                              : 'Select warehouse…'}
                           </option>
                           {warehouseSelectOptions
                             .filter((w) => !subAdminSelectedWarehouses.includes(w.value))
@@ -11151,7 +11152,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       </div>
                       <div className="sa-op-chips">
                         {subAdminSelectedWarehouses.length === 0 ? (
-                          <em>No warehouses selected â€” full warehouse access</em>
+                          <em>No warehouses selected — full warehouse access</em>
                         ) : (
                           subAdminSelectedWarehouses.map((wh, idx) => (
                             <span key={idx} className="sa-op-chip">
@@ -11192,13 +11193,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         >
                           <option value="">
                             {subAdminSelectedWarehouses.length === 0
-                              ? 'Select warehouse(s) first to see clientsâ€¦'
+                              ? 'Select warehouse(s) first to see clients…'
                               : subAdminClientOptions.length === 0
                                 ? 'No clients found for selected warehouse(s)'
-                                : `Select client (${subAdminClientOptions.length} for selected warehouse(s))â€¦`}
+                                : `Select client (${subAdminClientOptions.length} for selected warehouse(s))…`}
                           </option>
                           {subAdminSelectedWarehouses.length > 0 ? (
-                            <option value="__ALL__">All â€” all products in selected warehouse(s)</option>
+                            <option value="__ALL__">All — all products in selected warehouse(s)</option>
                           ) : null}
                           {subAdminClientOptions
                             .filter((c) => !subAdminSelectedClients.includes(c.value))
@@ -11211,7 +11212,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       </div>
                       <div className="sa-op-chips">
                         {subAdminSelectedWarehouses.length === 0 ? (
-                          <em>Pick warehouses above â€” clients will list for those warehouses only</em>
+                          <em>Pick warehouses above — clients will list for those warehouses only</em>
                         ) : subAdminSelectedClients.length === 0 ? (
                           <span className="sa-op-chip" title="Full access to all products in selected warehouse(s)">
                             All products
@@ -11268,7 +11269,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       {savingSubAdmin ? (
                         <>
                           <Loader2 size={14} className="spinner-icon" />
-                          {subAdminProcessStatus || 'Processingâ€¦'}
+                          {subAdminProcessStatus || 'Processing…'}
                         </>
                       ) : (
                         <>
@@ -11371,7 +11372,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       )}
 
                       {loadingSubAdmins ? (
-                        <SaDataLoading label="Loading customersâ€¦" />
+                        <SaDataLoading label="Loading customers…" />
                       ) : filteredSubAdminsList.length === 0 ? (
                         <div className="sa-op-empty">
                           <ShieldAlert size={28} />
@@ -11420,7 +11421,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   : 'All products';
                                 const regDate = sa.created_at
                                   ? new Date(sa.created_at).toLocaleDateString('en-GB')
-                                  : 'â€”';
+                                  : '—';
                                 const ago = relativeAgo(sa.created_at);
                                 return (
                                   <tr key={sa.id} className="sa-op-dir-row">
@@ -11444,10 +11445,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                       </button>
                                     </td>
                                     <td className="sa-op-dir-td-email" title={sa.email || ''}>
-                                      {sa.email || 'â€”'}
+                                      {sa.email || '—'}
                                     </td>
                                     <td className="sa-op-dir-td-phone">
-                                      {sa.phone_no ? formatIndiaPhoneDisplay(sa.phone_no) : 'â€”'}
+                                      {sa.phone_no ? formatIndiaPhoneDisplay(sa.phone_no) : '—'}
                                     </td>
                                     <td className="sa-op-dir-td-wh" title={warehouseLabel}>
                                       <span className="sa-reg-wh-cell">
@@ -11538,12 +11539,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   .join('') || 'DO';
                 const profileFields = [
                   { label: 'Operator ID', value: `#${op.id}` },
-                  { label: 'Full Name', value: op.full_name || 'â€”' },
+                  { label: 'Full Name', value: op.full_name || '—' },
                   { label: 'Phone No.', value: formatIndiaPhoneDisplay(op.phone_no) },
-                  { label: 'Email Address', value: op.email || 'â€”' },
+                  { label: 'Email Address', value: op.email || '—' },
                   { label: 'Warehouse / Data Access', value: op.warehouse_name || 'Not Configured' },
                   { label: 'Chamber Limit', value: String(op.chamber_limit || 4) },
-                  { label: 'Registration Date', value: op.created_at ? new Date(op.created_at).toLocaleDateString('en-GB') : 'â€”' }
+                  { label: 'Registration Date', value: op.created_at ? new Date(op.created_at).toLocaleDateString('en-GB') : '—' }
                 ];
                 const inTotal = Number(op.total_inward) || 0;
                 const outTotal = Number(op.total_outward) || 0;
@@ -11600,7 +11601,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   opTaskAppliedFrom && opTaskAppliedTo
                     ? opTaskAppliedFrom === opTaskAppliedTo
                       ? formatDateStr(opTaskAppliedFrom)
-                      : `${formatDateStr(opTaskAppliedFrom)} â†’ ${formatDateStr(opTaskAppliedTo)}`
+                      : `${formatDateStr(opTaskAppliedFrom)} → ${formatDateStr(opTaskAppliedTo)}`
                     : 'Selected period';
                 const todayKey = localDateStr();
                 const todayItems = (opTaskStatus.items || []).filter((i) => i.date === todayKey);
@@ -11643,7 +11644,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   const total = kind === 'morning' ? row.morning : row.evening;
                   const done = kind === 'morning' ? row.mornDone : row.eveDone;
                   const overdue = kind === 'morning' ? row.mornOverdue : row.eveOverdue;
-                  if (total === 0) return { label: 'â€”', tone: 'idle', done: 0, expected: 0 };
+                  if (total === 0) return { label: '—', tone: 'idle', done: 0, expected: 0 };
                   const label = `${done}/${total}`;
                   if (done === total) return { label, tone: 'ok', done, expected: total };
                   if (overdue > 0) return { label, tone: 'bad', done, expected: total };
@@ -11652,7 +11653,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 // Group task items by date for timeline table
                 const timelineByDate = {};
                 (filteredOpTasks || []).forEach((task) => {
-                  const d = task.date || 'â€”';
+                  const d = task.date || '—';
                   if (!timelineByDate[d]) {
                     timelineByDate[d] = {
                       date: d,
@@ -11817,12 +11818,12 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <span className="do-prof-meta-chip">
                             <Phone size={12} />
                             <b>Phone</b>
-                            <em>{formatIndiaPhoneDisplay(op.phone_no) || 'â€”'}</em>
+                            <em>{formatIndiaPhoneDisplay(op.phone_no) || '—'}</em>
                           </span>
                           <span className="do-prof-meta-chip">
                             <Mail size={12} />
                             <b>Email</b>
-                            <em title={op.email || ''}>{op.email || 'â€”'}</em>
+                            <em title={op.email || ''}>{op.email || '—'}</em>
                           </span>
                           <span className="do-prof-meta-chip">
                             <Home size={12} />
@@ -11840,7 +11841,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             <em>
                               {op.created_at
                                 ? new Date(op.created_at).toLocaleDateString('en-GB')
-                                : 'â€”'}
+                                : '—'}
                             </em>
                           </span>
                         </div>
@@ -11883,15 +11884,15 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <span>
                             <ArrowDownLeft size={13} /> Today Inward
                           </span>
-                          <strong>{ioLoading ? 'â€¦' : inToday}</strong>
-                          <em>of {ioLoading ? 'â€¦' : inTotal} total</em>
+                          <strong>{ioLoading ? '…' : inToday}</strong>
+                          <em>of {ioLoading ? '…' : inTotal} total</em>
                         </article>
                         <article className="do-prof-today-item out">
                           <span>
                             <ArrowUpRight size={13} /> Today Outward
                           </span>
-                          <strong>{ioLoading ? 'â€¦' : outToday}</strong>
-                          <em>of {ioLoading ? 'â€¦' : outTotal} total</em>
+                          <strong>{ioLoading ? '…' : outToday}</strong>
+                          <em>of {ioLoading ? '…' : outTotal} total</em>
                         </article>
                       </div>
                     </section>
@@ -11931,7 +11932,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   if (val && opTaskToDate && val > opTaskToDate) setOpTaskToDate(val);
                                 }}
                               />
-                              <span>â†’</span>
+                              <span>→</span>
                               <input
                                 type="date"
                                 value={opTaskToDate}
@@ -11969,10 +11970,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         <div
                                           className={`do-prof-donut io-mix${ioMoveTotal === 0 ? ' empty' : ''}`}
                                           style={{ '--pct': `${inSharePct}%` }}
-                                          title={`Total Inward ${inTotal} Â· Total Outward ${outTotal}`}
+                                          title={`Total Inward ${inTotal} · Total Outward ${outTotal}`}
                                         >
                                           <i>
-                                            {ioLoading ? 'â€¦' : ioMoveTotal}
+                                            {ioLoading ? '…' : ioMoveTotal}
                                             <b>total</b>
                                           </i>
                                         </div>
@@ -11981,14 +11982,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                             <span>
                                               <ArrowDownLeft size={14} /> Total Inward
                                             </span>
-                                            <strong>{ioLoading ? 'â€¦' : inTotal}</strong>
+                                            <strong>{ioLoading ? '…' : inTotal}</strong>
                                             <em>{inSharePct}%</em>
                                           </div>
                                           <div className="do-prof-io-stat out">
                                             <span>
                                               <ArrowUpRight size={14} /> Total Outward
                                             </span>
-                                            <strong>{ioLoading ? 'â€¦' : outTotal}</strong>
+                                            <strong>{ioLoading ? '…' : outTotal}</strong>
                                             <em>{outSharePct}%</em>
                                           </div>
                                         </div>
@@ -12003,7 +12004,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         Calendar:{' '}
                                         <strong>{periodLabel}</strong>
                                         {periodDates.length > 0
-                                          ? ` Â· ${periodDates.length} day${periodDates.length === 1 ? '' : 's'}`
+                                          ? ` · ${periodDates.length} day${periodDates.length === 1 ? '' : 's'}`
                                           : ''}
                                       </p>
                                       <div className="do-prof-task-count-grid">
@@ -12044,7 +12045,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                     </div>
                                     {timelineRows.length === 0 ? (
                                       <div className="do-prof-empty">
-                                        {opTaskLogsLoading ? 'Loading tasksâ€¦' : 'No tasks in this range.'}
+                                        {opTaskLogsLoading ? 'Loading tasks…' : 'No tasks in this range.'}
                                       </div>
                                     ) : (
                                       <>
@@ -12197,7 +12198,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                           ? new Date(
                                               new Date(op.created_at).getTime() + 90 * 86400000
                                             ).toLocaleDateString('en-GB')
-                                          : 'â€”'}
+                                          : '—'}
                                       </em>
                                     </p>
                                   </div>
@@ -12215,13 +12216,13 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           <h3>Chamber Task Status</h3>
                           <p className="do-prof-range-label" style={{ margin: '4px 0 0' }}>
                             Morning &amp; Evening inspections
-                            {' Â· '}
+                            {' · '}
                             <strong>{periodLabel}</strong>
-                            {' Â· '}
+                            {' · '}
                             {opTaskStatus.assignmentCount} active client
                             {opTaskStatus.assignmentCount === 1 ? '' : 's'}
                             {!opTaskLogsLoading && opActiveAssignments.length > 0
-                              ? ` Â· ${opTaskLogs.length} log${opTaskLogs.length === 1 ? '' : 's'} loaded`
+                              ? ` · ${opTaskLogs.length} log${opTaskLogs.length === 1 ? '' : 's'} loaded`
                               : ''}
                           </p>
                         </div>
@@ -12249,7 +12250,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               try {
                                 const taskGroupMap = {};
                                 filteredOpTasks.forEach((task) => {
-                                  const key = String(task.date || 'â€”');
+                                  const key = String(task.date || '—');
                                   if (!taskGroupMap[key]) {
                                     taskGroupMap[key] = {
                                       date: task.date,
@@ -12301,7 +12302,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         ? 'Pending'
                                         : expected > 0 && done === expected
                                           ? 'Completed'
-                                          : 'â€”';
+                                          : '—';
                                   return [
                                     formatDateStr(row.date),
                                     excelRatioText(row.morning.done, row.morning.expected),
@@ -12345,7 +12346,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             }}
                             title="From date"
                           />
-                          <span>â†’</span>
+                          <span>→</span>
                           <input
                             type="date"
                             value={opTaskToDate}
@@ -12390,7 +12391,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             disabled={opTaskLogsLoading}
                           >
                             <RefreshCw size={13} />
-                            {opTaskLogsLoading ? 'Refreshingâ€¦' : 'Refresh'}
+                            {opTaskLogsLoading ? 'Refreshing…' : 'Refresh'}
                           </button>
                           {[
                             { days: 1, label: 'Today' },
@@ -12441,11 +12442,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       {!op.warehouse_name ? (
                         <div className="do-prof-empty">Configure warehouse access to track chamber tasks.</div>
                       ) : opMappingsLoading && opActiveAssignments.length === 0 ? (
-                        <SaDataLoading label="Loading assignmentsâ€¦" compact />
+                        <SaDataLoading label="Loading assignments…" compact />
                       ) : opActiveAssignments.length === 0 ? (
                         <div className="do-prof-empty">No active chamber clients assigned for this operator.</div>
                       ) : opTaskLogsLoading && opTaskStatus.total === 0 ? (
-                        <SaDataLoading label="Loading task statusâ€¦" compact />
+                        <SaDataLoading label="Loading task status…" compact />
                       ) : (
                         <>
                           <div className="do-prof-task-tools">
@@ -12496,7 +12497,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             (() => {
                               const taskGroupMap = {};
                               filteredOpTasks.forEach((task) => {
-                                const key = String(task.date || 'â€”');
+                                const key = String(task.date || '—');
                                 if (!taskGroupMap[key]) {
                                   taskGroupMap[key] = {
                                     date: task.date,
@@ -12533,7 +12534,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 String(b.date || '').localeCompare(String(a.date || ''))
                               );
                               const shiftDoneExpected = (bucket) => {
-                                if (!bucket || bucket.expected === 0) return { label: 'â€”', tone: 'idle' };
+                                if (!bucket || bucket.expected === 0) return { label: '—', tone: 'idle' };
                                 const label = `${bucket.done}/${bucket.expected}`;
                                 if (bucket.done === bucket.expected) return { label, tone: 'ok' };
                                 if (bucket.overdue > 0) return { label, tone: 'bad' };
@@ -12587,7 +12588,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                             ? 'Pending'
                                             : st === 'ok'
                                               ? 'Completed'
-                                              : 'â€”';
+                                              : '—';
                                       const viewTask = row.morning.viewTask || row.evening.viewTask;
                                       return (
                                         <tr key={row.date || 'unknown'}>
@@ -12618,7 +12619,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                                 View
                                               </button>
                                             ) : (
-                                              <span className="do-prof-muted">â€”</span>
+                                              <span className="do-prof-muted">—</span>
                                             )}
                                           </td>
                                         </tr>
@@ -12666,7 +12667,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       {!op.warehouse_name ? (
                         <div className="do-prof-empty">Warehouse is not configured for this operator.</div>
                       ) : opMappingsLoading ? (
-                        <SaDataLoading label={`Loading mappings for ${op.warehouse_name}â€¦`} compact />
+                        <SaDataLoading label={`Loading mappings for ${op.warehouse_name}…`} compact />
                       ) : (
                         (() => {
                           const chamberLimit = Number(op.chamber_limit) || 4;
@@ -12755,7 +12756,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             if (zone === 'Chilled') return '-5 to 5';
                             if (zone === 'Dry') return '15 to 25';
                             if (zone === 'Other') return '0 to 40';
-                            return 'â€”';
+                            return '—';
                           };
                           const indexTone = (idx) => ['blue', 'purple', 'cyan', 'orange'][idx % 4];
                           const CLIENT_PREVIEW = 6;
@@ -12915,7 +12916,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   disabled={addingOpChamber}
                                   onClick={() => handleAddOpChamber(op)}
                                 >
-                                  {addingOpChamber ? 'Addingâ€¦' : 'Add chamber'}
+                                  {addingOpChamber ? 'Adding…' : 'Add chamber'}
                                 </button>
                               </div>
                             </div>
@@ -12925,7 +12926,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             <div className="do-prof-empty">
                               {opDisplayChambers.length === 0
                                 ? opMasterEditChamberKey === '__add__'
-                                  ? 'No chambers yet â€” use Add chamber above.'
+                                  ? 'No chambers yet — use Add chamber above.'
                                   : 'No chambers assigned yet. Open Add Mapping to add one.'
                                 : 'No chambers match this search or filter.'}
                             </div>
@@ -12976,9 +12977,9 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         <span className={`do-prof-map-type-box ${typeTone}`}>
                                           Type: {typeZone}
                                         </span>
-                                        <span className="do-prof-map-sub-sep">Â·</span>
-                                        Temp range: {tempForType(chamberType)}Â°C
-                                        <span className="do-prof-map-sub-sep">Â·</span>
+                                        <span className="do-prof-map-sub-sep">·</span>
+                                        Temp range: {tempForType(chamberType)}°C
+                                        <span className="do-prof-map-sub-sep">·</span>
                                         Warehouse: {op.warehouse_name}
                                       </p>
                                     </div>
@@ -13120,7 +13121,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                       >
                                         {expanded
                                           ? 'Show less'
-                                          : `View All (${allClients.length}) â†’`}
+                                          : `View All (${allClients.length}) →`}
                                       </button>
                                     ) : null}
                                   </div>
@@ -13138,7 +13139,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         >
                                           <span>{assign.client_name}</span>
                                           <em className={assign._status === 'inactive' ? 'bad' : 'ok'}>
-                                            Â· {assign._status === 'inactive' ? 'Inactive' : 'Active'}
+                                            · {assign._status === 'inactive' ? 'Inactive' : 'Active'}
                                           </em>
                                           {chamberEditing && assign._status === 'active' ? (
                                             <button
@@ -13216,7 +13217,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         <div>
                           <h3 className="do-gmail-title">Master Setup Activity</h3>
                           <p className="do-gmail-sub">
-                            Chamber, client and type changes Â· {opMasterAppliedFrom || 'â€”'} to {opMasterAppliedTo || 'â€”'}
+                            Chamber, client and type changes · {opMasterAppliedFrom || '—'} to {opMasterAppliedTo || '—'}
                           </p>
                         </div>
                       </div>
@@ -13286,7 +13287,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                             onClick={() => loadOpMasterActivities(op.email)}
                             disabled={opMasterActivitiesLoading}
                           >
-                            {opMasterActivitiesLoading ? 'Refreshingâ€¦' : 'Refresh'}
+                            {opMasterActivitiesLoading ? 'Refreshing…' : 'Refresh'}
                           </button>
                         </div>
                         {[
@@ -13360,7 +13361,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       )}
 
                       {opMasterActivitiesLoading && dateFilteredMasterActivities.length === 0 ? (
-                        <SaDataLoading label="Loading Master Setup activityâ€¦" compact />
+                        <SaDataLoading label="Loading Master Setup activity…" compact />
                       ) : dateFilteredMasterActivities.length === 0 ? (
                         <div className="do-gmail-empty">
                           {profileMasterActivities.length === 0
@@ -13412,14 +13413,14 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                     if (parsed.renamed.length) {
                                       changeLines.push({
                                         label: 'Renamed',
-                                        value: parsed.renamed.map((item) => `${item.from} â†’ ${item.to}`).join(', '),
+                                        value: parsed.renamed.map((item) => `${item.from} → ${item.to}`).join(', '),
                                         color: '#a16207'
                                       });
                                     }
                                     if (parsed.typeFrom || parsed.typeTo) {
                                       changeLines.push({
                                         label: 'Type',
-                                        value: parsed.typeFrom && parsed.typeTo ? `${parsed.typeFrom} â†’ ${parsed.typeTo}` : (parsed.typeTo || parsed.typeFrom),
+                                        value: parsed.typeFrom && parsed.typeTo ? `${parsed.typeFrom} → ${parsed.typeTo}` : (parsed.typeTo || parsed.typeFrom),
                                         color: '#1d4ed8'
                                       });
                                     }
@@ -13455,7 +13456,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                           </div>
                                         </td>
                                         <td style={{ padding: '6px 8px', fontWeight: 700, color: '#0f172a' }}>
-                                          {parsed.chamber || 'â€”'}
+                                          {parsed.chamber || '—'}
                                         </td>
                                         <td style={{ padding: '6px 8px', color: '#334155' }}>
                                           {changeLines.length > 0 ? (
@@ -13470,7 +13471,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                           ) : highlightAddedDeletedWords(parsed.summary)}
                                         </td>
                                         <td style={{ padding: '6px 8px', color: '#0f766e', fontWeight: 600, fontSize: '0.72rem', maxWidth: 180 }}>
-                                          {parsed.remark || 'â€”'}
+                                          {parsed.remark || '—'}
                                         </td>
                                         <td style={{ padding: '6px 8px', color: '#64748b', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>
                                           {parsed.when
@@ -13483,7 +13484,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                                 second: '2-digit',
                                                 hour12: true
                                               })
-                                            : 'â€”'}
+                                            : '—'}
                                         </td>
                                       </tr>
                                     );
@@ -13531,7 +13532,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     </h2>
                     <p className="sa-op-sub">
                       {editingOp
-                        ? `Update ${editingOp.email || 'operator'} â€” warehouse and chamber limit apply to profile and logs.`
+                        ? `Update ${editingOp.email || 'operator'} — warehouse and chamber limit apply to profile and logs.`
                         : 'Add a new data operator to the ReeferON system. All fields are required.'}
                     </p>
                   </div>
@@ -13648,7 +13649,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               type={showPassword ? 'text' : 'password'}
                               name="op-password"
                               autoComplete="new-password"
-                              placeholder={editingOp ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' : 'Enter login password'}
+                              placeholder={editingOp ? '••••••••' : 'Enter login password'}
                               value={opPassword}
                               onChange={(e) => setOpPassword(e.target.value)}
                               required={!editingOp}
@@ -13748,7 +13749,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
 
                       {warehouseSelectOptions.length === 0 ? (
                         <p className="sa-reg-field-note sa-op-sub">
-                          Go to Master Data â†’ Warehouses, add a location, then pick it here.
+                          Go to Master Data → Warehouses, add a location, then pick it here.
                         </p>
                       ) : null}
                     </div>
@@ -13771,7 +13772,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         {savingOp ? (
                           <>
                             <Loader2 size={14} className="spinner-icon" />
-                            {opProcessStatus || 'Processingâ€¦'}
+                            {opProcessStatus || 'Processing…'}
                           </>
                         ) : (
                           <>
@@ -13873,7 +13874,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         )}
 
                         {loadingOps ? (
-                          <SaDataLoading label="Loading operatorsâ€¦" />
+                          <SaDataLoading label="Loading operators…" />
                         ) : filteredOperators.length === 0 ? (
                           <div className="sa-op-empty">
                             <ShieldAlert size={28} />
@@ -13906,7 +13907,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                   const tone = avatarPalette[(Number(op.id) || idx) % avatarPalette.length];
                                   const regDate = op.created_at
                                     ? new Date(op.created_at).toLocaleDateString('en-GB')
-                                    : 'â€”';
+                                    : '—';
                                   const ago = relativeAgo(op.created_at);
                                   return (
                                     <tr key={op.id} className="sa-op-dir-row">
@@ -13930,10 +13931,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                         </button>
                                       </td>
                                       <td className="sa-op-dir-td-email" title={op.email || ''}>
-                                        {op.email || 'â€”'}
+                                        {op.email || '—'}
                                       </td>
                                       <td className="sa-op-dir-td-phone">
-                                        {op.phone_no ? formatIndiaPhoneDisplay(op.phone_no) : 'â€”'}
+                                        {op.phone_no ? formatIndiaPhoneDisplay(op.phone_no) : '—'}
                                       </td>
                                       <td className="sa-op-dir-td-wh" title={op.warehouse_name || ''}>
                                         <span className="sa-reg-wh-cell">
@@ -14065,7 +14066,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       <div>
                         <h2 className="sa-op-title">Customer Notes & Updates</h2>
                         <p className="sa-op-sub">
-                          Chat-style notes â€” customers see these on mobile Dashboard â†’ Updates.
+                          Chat-style notes — customers see these on mobile Dashboard → Updates.
                         </p>
                       </div>
                     </div>
@@ -14080,7 +14081,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         disabled={loadingNotes}
                       >
                         <RefreshCw size={14} />
-                        {loadingNotes ? 'Refreshingâ€¦' : 'Refresh'}
+                        {loadingNotes ? 'Refreshing…' : 'Refresh'}
                       </button>
                     </div>
                   </div>
@@ -14118,7 +14119,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               >
                                 <strong>{t.customer_name || email}</strong>
                                 <em>{email}</em>
-                                <span>{t.last_message || 'â€”'}</span>
+                                <span>{t.last_message || '—'}</span>
                               </button>
                             );
                           })
@@ -14129,7 +14130,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                       <div className="sa-cr-pane-head">
                         {selectedNoteCustomer && selectedNoteCustomer !== 'All'
                           ? selectedNoteCustomer
-                          : `All customers Â· send goes to everyone (${(subAdmins || []).length || 0})`}
+                          : `All customers · send goes to everyone (${(subAdmins || []).length || 0})`}
                       </div>
                       <div className="sa-cr-messages">
                         {noteMessages.length === 0 ? (
@@ -14147,10 +14148,10 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                               <div key={m.id} className={`sa-cr-bubble${fromAdmin ? ' out' : ''}`}>
                                 <small>
                                   {showCustomer
-                                    ? `${m.customer_name || m.customer_email || 'Customer'} Â· `
+                                    ? `${m.customer_name || m.customer_email || 'Customer'} · `
                                     : ''}
                                   {fromAdmin ? 'Super Admin' : (m.author_name || 'Customer')}
-                                  {' Â· '}
+                                  {' · '}
                                   {m.created_at ? new Date(m.created_at).toLocaleString() : ''}
                                 </small>
                                 <p>{m.message}</p>
@@ -14171,8 +14172,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           onChange={(e) => setNoteDraft(e.target.value)}
                           placeholder={
                             selectedNoteCustomer && selectedNoteCustomer !== 'All'
-                              ? 'Write an update / note for this customerâ€¦'
-                              : 'Write a note â€” will send to ALL customersâ€¦'
+                              ? 'Write an update / note for this customer…'
+                              : 'Write a note — will send to ALL customers…'
                           }
                           disabled={sendingNote}
                           rows={2}
@@ -14184,7 +14185,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                           disabled={sendingNote || !String(noteDraft || '').trim()}
                         >
                           {sendingNote
-                            ? 'Sendingâ€¦'
+                            ? 'Sending…'
                             : selectedNoteCustomer && selectedNoteCustomer !== 'All'
                               ? 'Send'
                               : 'Send to all'}
@@ -14250,14 +14251,22 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   {customerReportsError && <div className="sa-op-banner error">{customerReportsError}</div>}
 
                   {loadingCustomerReports ? (
-                    <SaDataLoading label="Loading customer reportsâ€¦" />
+                    <SaDataLoading label="Loading customer reports…" />
                   ) : customerReports.length === 0 ? (
                     <div className="sa-op-empty">
                       <MessageSquareWarning size={28} />
                       <p>No customer reports found.</p>
                     </div>
                   ) : (
-                    <div className="sa-op-inbox">
+                    <div className="sa-cr-issue-list">
+                      <div className="sa-cr-issue-list-head" aria-hidden="true">
+                        <span>Customer</span>
+                        <span>Ref No.</span>
+                        <span>Issue message</span>
+                        <span>Status</span>
+                        <span>Submitted</span>
+                        <span>Actions</span>
+                      </div>
                       {customerReports.map((report, idx) => {
                         if (!report) return null;
                         const initials = String(report.customer_name || report.customer_email || 'CU')
@@ -14276,43 +14285,68 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                         const statusKey =
                           report.status === 'In Progress' ? 'progress'
                             : String(report.status || 'closed').toLowerCase();
+                        const submitted = report.created_at
+                          ? new Date(report.created_at).toLocaleString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : '—';
                         return (
-                          <div key={report.id} className="sa-op-inbox-row">
-                            <div className="sa-op-inbox-main sa-cr-report-main">
+                          <article key={report.id} className="sa-cr-issue-item">
+                            <div className="sa-cr-issue-col sa-cr-issue-col-customer">
                               <span
                                 className="sa-op-avatar sa-reg-avatar"
                                 style={{ background: tone.bg, color: tone.color }}
                               >
                                 {initials}
                               </span>
-                              <span className="sa-op-sender">
+                              <div className="sa-cr-issue-customer-text">
                                 <strong>{report.customer_name || 'Unnamed customer'}</strong>
-                                <em>{report.customer_email || 'â€”'}</em>
-                              </span>
-                              <span className="sa-op-snippet">
+                                <em>{report.customer_email || '—'}</em>
+                                {report.customer_phone ? (
+                                  <span className="sa-cr-issue-phone">{report.customer_phone}</span>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="sa-cr-issue-col sa-cr-issue-col-ref">
+                              <span className="sa-cr-issue-ref-label">Ref No.</span>
+                              <span className="sa-cr-issue-ref-value">
                                 {report.reference_no || 'Query'}
-                                {report.message ? ` Â· ${report.message}` : ''}
-                                {' Â· '}
-                                {report.allowed_clients || 'All clients'}
-                                {' Â· '}
-                                {report.allowed_warehouses || 'All warehouses'}
-                                {report.customer_phone ? ` Â· ${report.customer_phone}` : ''}
-                              </span>
-                              <span className="sa-op-date">
-                                <span className={`sa-cr-pill ${statusKey}`}>{report.status || 'â€”'}</span>
-                                {' '}
-                                {report.created_at
-                                  ? new Date(report.created_at).toLocaleDateString('en-GB')
-                                  : 'â€”'}
                               </span>
                             </div>
-                            <div className="sa-op-row-actions">
+                            <div className="sa-cr-issue-col sa-cr-issue-col-message">
+                              <span className="sa-cr-issue-msg-label">Issue message</span>
+                              <p className="sa-cr-issue-msg-body">
+                                {String(report.message || '').trim() || '—'}
+                              </p>
+                              <div className="sa-cr-issue-scope">
+                                <span title="Allowed clients">
+                                  Clients: {report.allowed_clients || 'All'}
+                                </span>
+                                <span title="Allowed warehouses">
+                                  Warehouses: {report.allowed_warehouses || 'All'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="sa-cr-issue-col sa-cr-issue-col-status">
+                              <span className={`sa-cr-pill ${statusKey}`}>
+                                {report.status || '—'}
+                              </span>
+                            </div>
+                            <div className="sa-cr-issue-col sa-cr-issue-col-date">
+                              <time dateTime={report.created_at || undefined}>{submitted}</time>
+                            </div>
+                            <div className="sa-cr-issue-col sa-cr-issue-col-actions">
                               <select
                                 className="sa-cr-status-select"
                                 value={report.status}
                                 disabled={updatingReportId === report.id}
                                 onChange={(e) => handleUpdateCustomerReportStatus(report.id, e.target.value)}
                                 title="Update status"
+                                aria-label="Update report status"
                               >
                                 <option value="Open">Open</option>
                                 <option value="In Progress">In Progress</option>
@@ -14329,7 +14363,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                                 <Trash2 size={14} />
                               </button>
                             </div>
-                          </div>
+                          </article>
                         );
                       })}
                     </div>
@@ -14386,7 +14420,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   id="sa-deny-remark"
                   className="sa-deny-permission-textarea"
                   rows={4}
-                  placeholder="Example: Photo is unclear â€” please capture again and resubmit."
+                  placeholder="Example: Photo is unclear — please capture again and resubmit."
                   value={denyPermissionModal.remark}
                   disabled={denyPermissionModal.busy}
                   onChange={(e) =>
@@ -14413,7 +14447,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 {denyPermissionModal.busy ? (
                   <>
                     <Loader2 size={16} className="spinner-icon" />
-                    <span>Denyingâ€¦</span>
+                    <span>Denying…</span>
                   </>
                 ) : (
                   <span>Deny &amp; send remark</span>
@@ -14450,7 +14484,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   </div>
                   <div className="sa-profile-confirm-flag">
                     <span>Warehouse</span>
-                    <strong>{opMasterDonePopup.warehouseName || 'â€”'}</strong>
+                    <strong>{opMasterDonePopup.warehouseName || '—'}</strong>
                   </div>
                 </div>
                 {(() => {
@@ -14589,8 +14623,8 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
               <strong>
                 Photo Preview
                 <span className="sa-lightbox-hint">
-                  {' '}Â· Ctrl + scroll to zoom
-                  {lightboxZoom > 1 ? ` Â· drag to move Â· ${Math.round(lightboxZoom * 100)}%` : ''}
+                  {' '}· Ctrl + scroll to zoom
+                  {lightboxZoom > 1 ? ` · drag to move · ${Math.round(lightboxZoom * 100)}%` : ''}
                 </span>
               </strong>
               <div className="sa-lightbox-actions">
@@ -14643,7 +14677,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                     : undefined
                 }
                 draggable={false}
-                title={lightboxZoom > 1 ? 'Drag to move Â· Ctrl + scroll to zoom' : 'Ctrl + scroll to zoom'}
+                title={lightboxZoom > 1 ? 'Drag to move · Ctrl + scroll to zoom' : 'Ctrl + scroll to zoom'}
               />
             </div>
           </div>
@@ -14658,7 +14692,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <Undo2 size={13} />
                 </span>
                 <div className="sa-log-undo-text">
-                  <strong>{pendingLogDelete.kindLabel}</strong> Â· <em>{pendingLogDelete.ref}</em> removed.
+                  <strong>{pendingLogDelete.kindLabel}</strong> · <em>{pendingLogDelete.ref}</em> removed.
                   <span className="sa-log-undo-timer">{pendingLogDelete.secondsLeft}s left</span>
                 </div>
               </div>
@@ -14671,7 +14705,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   type="button"
                   className="sa-log-undo-close"
                   onClick={finalizePendingLogDelete}
-                  title="Dismiss â€” keep deleted"
+                  title="Dismiss — keep deleted"
                   aria-label="Close undo"
                 >
                   <X size={13} />
@@ -14690,7 +14724,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <Undo2 size={13} />
                 </span>
                 <div className="sa-log-undo-text">
-                  <strong>Operator</strong> Â· <em>{pendingOperatorDelete.label}</em> revoked.
+                  <strong>Operator</strong> · <em>{pendingOperatorDelete.label}</em> revoked.
                   <span className="sa-log-undo-timer">{pendingOperatorDelete.secondsLeft}s left</span>
                 </div>
               </div>
@@ -14703,7 +14737,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   type="button"
                   className="sa-log-undo-close"
                   onClick={finalizePendingOperatorDelete}
-                  title="Dismiss â€” keep revoked"
+                  title="Dismiss — keep revoked"
                   aria-label="Close undo"
                 >
                   <X size={13} />
@@ -14722,7 +14756,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   <Undo2 size={13} />
                 </span>
                 <div className="sa-log-undo-text">
-                  <strong>Customer</strong> Â· <em>{pendingCustomerDelete.label}</em> revoked.
+                  <strong>Customer</strong> · <em>{pendingCustomerDelete.label}</em> revoked.
                   <span className="sa-log-undo-timer">{pendingCustomerDelete.secondsLeft}s left</span>
                 </div>
               </div>
@@ -14735,7 +14769,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   type="button"
                   className="sa-log-undo-close"
                   onClick={finalizePendingCustomerDelete}
-                  title="Dismiss â€” keep revoked"
+                  title="Dismiss — keep revoked"
                   aria-label="Close undo"
                 >
                   <X size={13} />
@@ -14756,11 +14790,11 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                 <div className="sa-log-undo-text">
                   {pendingMasterDelete.kind === 'chamber' ? (
                     <>
-                      <strong>Chamber</strong> Â· <em>{pendingMasterDelete.label}</em> deleted.
+                      <strong>Chamber</strong> · <em>{pendingMasterDelete.label}</em> deleted.
                     </>
                   ) : (
                     <>
-                      <strong>Client</strong> Â· <em>{pendingMasterDelete.label}</em> removed
+                      <strong>Client</strong> · <em>{pendingMasterDelete.label}</em> removed
                       {pendingMasterDelete.chamberName ? (
                         <>
                           {' '}
@@ -14782,7 +14816,7 @@ export default function SuperAdminSecureWindow({ user, onLogout, onUserUpdate })
                   type="button"
                   className="sa-log-undo-close"
                   onClick={finalizePendingMasterDelete}
-                  title="Dismiss â€” keep deleted"
+                  title="Dismiss — keep deleted"
                   aria-label="Close undo"
                 >
                   <X size={13} />
